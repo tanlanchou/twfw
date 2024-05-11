@@ -1,30 +1,36 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '../config/config.service';
+import { SendEmailDto, SendEmailWithUserDto, UserDto } from './send-email.dto';
 
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor(private readonly configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      service: this.configService.get('email.service'),
-      port: this.configService.get('email.port'),
-      secure: this.configService.get('email.secure'),
-      auth: {
-        user: this.configService.get('email.user'),
-        pass: this.configService.get('email.pass'),
-      },
-    });
+    this.configService.get('email').then(mailOptions => {
+      const mailConfigOptions = mailOptions.config;
+      this.transporter = nodemailer.createTransport({
+        service: mailConfigOptions.service,
+        port: mailConfigOptions.port,
+        secure: mailConfigOptions.secure,
+        auth: {
+          user: mailConfigOptions.user,
+          pass: mailConfigOptions.pass,
+        },
+      });
+    })
+
   }
 
-  async sendMail(to: string, subject: string, text: string): Promise<boolean> {
+  async sendMail(data: SendEmailWithUserDto): Promise<boolean> {
+    const mailOptions = await this.configService.get('email')
     try {
       await this.transporter.sendMail({
-        from: this.configService.get('email.from'),
-        to,
-        subject,
-        text,
+        from: mailOptions.config.from,
+        to: data.data.to,
+        subject: data.data.subject,
+        text: data.data.text,
       });
       return true;
     } catch (error) {
