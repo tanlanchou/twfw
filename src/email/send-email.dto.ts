@@ -25,10 +25,12 @@ export class UserDto {
     @IsString()
     id: string;
 
-    @IsNotEmpty()
     @IsString()
     @IsIP()
-    ip: string;
+    ip?: string;
+
+    @IsString()
+    platform?: string;
 }
 
 export class SendEmailWithUserDto {
