@@ -2,41 +2,41 @@
 import { IsString, IsNotEmpty, IsEmail, IsIP } from 'class-validator';
 
 export class SendEmailDto {
-    @IsNotEmpty()
-    @IsString()
-    @IsEmail()
-    to: string;
+  @IsNotEmpty()
+  @IsString()
+  @IsEmail()
+  to: string;
 
-    @IsNotEmpty()
-    @IsString()
-    subject: string;
+  @IsNotEmpty()
+  @IsString()
+  subject: string;
 
-    @IsNotEmpty()
-    @IsString()
-    text: string;
+  @IsNotEmpty()
+  @IsString()
+  text: string;
 }
 
 export class UserDto {
-    @IsNotEmpty()
-    @IsString()
-    name: string;
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @IsNotEmpty()
-    @IsString()
-    id: string;
+  @IsNotEmpty()
+  @IsString()
+  id: string;
 
-    @IsString()
-    @IsIP()
-    ip?: string;
+  @IsString()
+  @IsIP()
+  ip?: string;
 
-    @IsString()
-    platform?: string;
+  @IsString()
+  platform?: string;
 }
 
 export class SendEmailWithUserDto {
-    @IsNotEmpty()
-    data: SendEmailDto;
+  @IsNotEmpty()
+  data: SendEmailDto;
 
-    @IsNotEmpty()
-    user: UserDto;
+  @IsNotEmpty()
+  user: UserDto;
 }

@@ -8,7 +8,7 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor(private readonly configService: ConfigService) {
-    this.configService.get('email').then(mailOptions => {
+    this.configService.get('email').then((mailOptions) => {
       const mailConfigOptions = mailOptions.config;
       this.transporter = nodemailer.createTransport({
         service: mailConfigOptions.service,
@@ -19,12 +19,11 @@ export class EmailService {
           pass: mailConfigOptions.pass,
         },
       });
-    })
-
+    });
   }
 
   async sendMail(data: SendEmailWithUserDto): Promise<boolean> {
-    const mailOptions = await this.configService.get('email')
+    const mailOptions = await this.configService.get('email');
     try {
       await this.transporter.sendMail({
         from: mailOptions.config.from,
