@@ -1,8 +1,10 @@
 // src/email/email.controller.ts
 import {
   Controller,
+  Get,
   Inject,
   Injectable,
+  Post,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -11,14 +13,32 @@ import { EmailService } from './email.service';
 import { SendEmailWithUserDto } from './send-email.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { title } from 'process';
 
-@Controller()
+@Controller('email')
 @Injectable()
 export class EmailController {
   constructor(
     private readonly emailService: EmailService,
     @Inject('MICROSERVICE_LOG_CLIENT') private readonly client: ClientProxy,
   ) {}
+
+  @Get('test')
+  async getHello(): Promise<string> {
+    await firstValueFrom(
+      this.client.send<object>(
+        { cmd: 'addLog' },
+        {
+          operation: 'SEND_EMAIL',
+          operator: 'test',
+          platform: 'test',
+          details: `test`,
+          status: 'success',
+        },
+      ),
+    );
+    return 'hello';
+  }
 
   @MessagePattern({ cmd: 'sendEmail' })
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
