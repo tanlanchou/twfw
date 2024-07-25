@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Inject,
   Injectable,
   UsePipes,
@@ -9,7 +10,7 @@ import { MessagePattern } from "@nestjs/microservices";
 import { PhoneService } from "./phone.service";
 import { ClientProxy } from "@nestjs/microservices";
 
-@Controller()
+@Controller("sms")
 @Injectable()
 export class PhoneController {
   constructor(
@@ -33,4 +34,15 @@ export class PhoneController {
       templateParam
     );
   }
+
+  @Get("test")
+  async sendSMSTest() {
+    await this.phoneService.createDysmsapiClient();
+    this.phoneService.sendMessageWithTemplate(
+      "15008476428",
+      '来自奢小墩',
+      'SMS_293095094',
+      `{"code":"1001"}`
+    );
+  } 
 }

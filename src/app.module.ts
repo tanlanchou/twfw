@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module'; // Import the ConfigModule
-import { EmailModule } from './email/email.module';
+import { PhoneModule } from './phone/phone.module';
 
 
 @Module({
   imports: [
     ConfigModule,
-    EmailModule
+    PhoneModule
   ]
 })
 export class AppModule { }

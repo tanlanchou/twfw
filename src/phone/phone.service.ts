@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Controller, Injectable, Logger } from "@nestjs/common";
 import Dysmsapi20170525, * as $Dysmsapi20170525 from "@alicloud/dysmsapi20170525";
 import OpenApi, * as $OpenApi from "@alicloud/openapi-client";
 import Util, * as $Util from "@alicloud/tea-util";
@@ -13,10 +13,10 @@ export class PhoneService {
       const phoneOptions = await this.configService.get("phone");
       const conf = phoneOptions.config;
       const config = new $OpenApi.Config({
-        accessKeyId: conf.ACCESS_KEY_ID,
-        accessKeySecret: conf.ACCESS_KEY_SECRET,
+        accessKeyId: conf.access_key_id,
+        accessKeySecret: conf.access_key_secret,
       });
-      config.endpoint = conf.ENDPOINT;
+      config.endpoint = conf.endpoint;
       this.client = new Dysmsapi20170525(config);
     }
   }
