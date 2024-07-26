@@ -13,8 +13,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         useFactory: async (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: (await configService.get('email')).log.host,
-            port: (await configService.get('email')).log.port,
+            host: (await configService.get('log')).out.host,
+            port: (await configService.get('log')).out.port,
           },
         }),
         inject: [ConfigService],
