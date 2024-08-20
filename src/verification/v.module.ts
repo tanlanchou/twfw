@@ -30,6 +30,17 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         }),
         inject: [ConfigService],
       },
+      {
+        name: "MICROSERVICE_LOG_CLIENT",
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: (await configService.get("log")).out.host,
+            port: (await configService.get("log")).out.port,
+          },
+        }),
+        inject: [ConfigService],
+      }
     ]),
     TypeOrmModule.forRootAsync({
       useFactory: async (consulService: ConfigService) => {
