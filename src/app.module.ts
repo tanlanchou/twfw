@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConsulService } from './consul.service';
-import { LogService } from './log.service';
-import { LogController } from './log.controller';
-import { GeneralLog } from './general-log.entity';
-import { ConsulModule } from './consul.module'; //
+import { ConfigService } from './common/config/config.service';
+import { LogService } from './log/log.service';
+import { LogController } from './log/log.controller';
+import { GeneralLog } from './log/general-log.entity';
+import { ConfigModule } from './common/config/config.module'; //
 @Module({
   imports: [
-    ConsulModule,
+    ConfigModule,
     TypeOrmModule.forRootAsync({
-      useFactory: async (consulService: ConsulService) => {
-        const config = await consulService.getConfig('log');
+      useFactory: async (configService: ConfigService) => {
+        const config = await configService.get('log');
         return {
           type: config.config.DB_TYPE,
           host: config.config.DB_HOST,
@@ -22,7 +22,7 @@ import { ConsulModule } from './consul.module'; //
           synchronize: false, // 根据你的需求设置，通常在开发环境中设置为 true
         };
       },
-      inject: [ConsulService],
+      inject: [ConfigService],
     }),
     TypeOrmModule.forFeature([GeneralLog]),
   ],
