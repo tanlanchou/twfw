@@ -51,6 +51,8 @@ export class LogService {
             query.andWhere('log.status = :status', { status });
         }
 
+        query.orderBy('log.timestamp', 'DESC')
+
         // 分页逻辑
         query.skip((page - 1) * limit).take(limit);
 

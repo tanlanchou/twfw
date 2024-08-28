@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { LogService } from './log.service';
 import { GeneralLog } from './general-log.entity';
-import { MessagePattern } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { error, result, resultCode, success } from '../common/helper/result';
 
 @Controller('log')
@@ -23,18 +23,27 @@ export class LogController {
 
     @Get()
     @MessagePattern({ cmd: 'getLogs' })
-    async getLogs(
-        @Query('operation') operation?: string,
-        @Query('operator') operator?: string,
-        @Query('platform') platform?: string,
-        @Query('startTime') startTime?: Date,
-        @Query('endTime') endTime?: Date,
-        @Query('details') details?: string,
-        @Query('status') status?: string,
-        @Query('page') page?: number,
-        @Query('limit') limit?: number,
-    ): Promise<result> {
+    async getLogs(@Payload() data: {
+        operation?: string,
+        operator?: string,
+        platform?: string,
+        startTime?: Date,
+        endTime?: Date,
+        details?: string,
+        status?: string,
+        page?: number,
+        limit?: number,
+    }): Promise<result> {
         try {
+            const { operation,
+                operator,
+                platform,
+                startTime,
+                endTime,
+                details,
+                status,
+                page,
+                limit } = data;
 
             const result = await this.logService.getLogs(
                 operation,

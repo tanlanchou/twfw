@@ -1,1 +1,1 @@
-docker run -d --name log_v0.1.0_container -p 8013:8013 --env CONSUL_HOST=%CONSUL_HOST% --restart always log_v0.1.0
+docker run -d --name log_v0.1.0_container -p 8103:8103 --env CONSUL_HOST=%CONSUL_HOST% --restart always log_v0.1.0
