@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { LogService } from './log.service';
 import { GeneralLog } from './general-log.entity';
 import { MessagePattern } from '@nestjs/microservices';
-import { error, result, resultCode, success } from 'src/common/helper/result';
+import { error, result, resultCode, success } from '../common/helper/result';
 
 @Controller('log')
 export class LogController {
