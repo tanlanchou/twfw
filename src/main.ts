@@ -4,6 +4,13 @@ import { AppModule } from './app.module';
 import { ConfigService } from './common/config/config.service';
 
 async function bootstrap() {
+
+  process.env.CONFIG_NAME = "log";
+  process.env.VERSION = "v0.1.0";
+  if (!process.env.NODE_ENV) {
+    process.env.NODE_ENV = "pro";
+  }
+
   const configService = new ConfigService();
   const config = await configService.get('log');
 
