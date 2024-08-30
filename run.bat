@@ -1,0 +1,1 @@
+docker run -d --name jwt_v0.1.0_container -p 8101:8101 --env CONSUL_HOST=%CONSUL_HOST% --restart always jwt_v0.1.0

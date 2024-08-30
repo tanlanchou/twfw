@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule as NestJwtModule } from '@nestjs/jwt';
 import { JwtService } from './jwt.service';
 import { JwtController } from './jwt.controller';
-import { ConfigService } from '../config/config.service';
+import { ConfigService } from '../common/config/config.service';
 
 @Module({
     imports: [

@@ -2,8 +2,14 @@
 import { NestFactory } from '@nestjs/core';
 import { Transport } from '@nestjs/microservices';
 import { AppModule } from './app.module';
-import { ConfigService } from './config/config.service';
+import { ConfigService } from './common/config/config.service';
 async function bootstrap() {
+
+  process.env.CONFIG_NAME = "jwt";
+  process.env.VERSION = "v0.1.0";
+  if (!process.env.NODE_ENV) {
+    process.env.NODE_ENV = "pro";
+  }
 
   const configService = new ConfigService();
   const jwtOptions = await configService.get('jwt');
