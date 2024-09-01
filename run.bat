@@ -1,0 +1,1 @@
+docker run -d --name email_v0.1.0_container -p 8102:8102 --env CONSUL_HOST=%CONSUL_HOST% --restart always email_v0.1.0

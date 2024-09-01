@@ -1,8 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Transport } from '@nestjs/microservices';
-import { ConfigService } from './config/config.service';
+import { ConfigService } from './common/config/config.service';
 async function bootstrap() {
+
+  process.env.CONFIG_NAME = "email";
+  process.env.VERSION = "v0.1.0";
+  if (!process.env.NODE_ENV) {
+    process.env.NODE_ENV = "pro";
+  }
+
   const configService = new ConfigService();
   const emailOptions = await configService.get('email');
   const app = await NestFactory.createMicroservice(AppModule, {
@@ -18,7 +25,7 @@ bootstrap();
 
 // import { NestFactory } from '@nestjs/core';
 // import { AppModule } from './app.module';
-// import { ConfigService } from './config/config.service';
+// import { ConfigService } from './common/config/config.service';
 
 // async function bootstrap() {
 //   const app = await NestFactory.create(AppModule);
