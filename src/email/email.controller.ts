@@ -9,9 +9,11 @@ import {
 } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
 import { EmailService } from './email.service';
-import { SendEmailWithUserDto } from './send-email.dto';
+import { SendEmailWithUserDto } from '../common/dto/send.email.with.user.dto';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
+import { NetworkUtils } from 'src/common/helper/ip';
+import { error, result, success } from 'src/common/helper/result';
 
 @Controller('email')
 @Injectable()
@@ -23,13 +25,14 @@ export class EmailController {
 
   @MessagePattern({ cmd: 'sendEmail' })
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
-  async sendMail(data: SendEmailWithUserDto): Promise<boolean> {
+  async sendMail(data: SendEmailWithUserDto): Promise<result> {
     let result: boolean;
     try {
       result = await this.emailService.sendMail(data);
-      return result;
-    } catch (error) {
-      return false;
+      return success(result);
+    } catch (ex) {
+      console.error(ex);
+      return error(ex.message);
     } finally {
       //日志
       await firstValueFrom(
@@ -44,7 +47,7 @@ export class EmailController {
           标题是${data.data.subject}, 
           内容是${data.data.text}, 
           发送给${data.data.to},
-          IP:${data.user.ip}`,
+          IP:${data.user.ip || NetworkUtils.getLocalIpAddress()}`,
             status: result ? 'success' : 'failure',
           },
         ),
