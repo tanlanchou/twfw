@@ -1,0 +1,1 @@
+docker run -d --name sms_v0.1.0_container -p 8104:8104 --env CONSUL_HOST=%CONSUL_HOST% --restart always sms_v0.1.0

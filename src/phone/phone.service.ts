@@ -2,7 +2,7 @@ import { Controller, Injectable, Logger } from "@nestjs/common";
 import Dysmsapi20170525, * as $Dysmsapi20170525 from "@alicloud/dysmsapi20170525";
 import OpenApi, * as $OpenApi from "@alicloud/openapi-client";
 import Util, * as $Util from "@alicloud/tea-util";
-import { ConfigService } from "../config/config.service";
+import { ConfigService } from "../common/config/config.service";
 
 @Injectable()
 export class PhoneService {
