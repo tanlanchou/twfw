@@ -9,6 +9,7 @@ import {
 import { MessagePattern } from "@nestjs/microservices";
 import { PhoneService } from "./phone.service";
 import { ClientProxy } from "@nestjs/microservices";
+import { sendSMSDto } from "src/common/dto/send.sms.dto";
 
 @Controller("sms")
 @Injectable()
@@ -16,33 +17,12 @@ export class PhoneController {
   constructor(
     private readonly phoneService: PhoneService,
     @Inject("MICROSERVICE_LOG_CLIENT") private readonly client: ClientProxy
-  ) {}
+  ) { }
 
   @MessagePattern({ cmd: "sendSMS" })
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
-  async sendSMS(
-    to: string,
-    signName: string,
-    templateCode: string,
-    templateParam: string
-  ) {
+  async sendSMS(data: sendSMSDto) {
     await this.phoneService.createDysmsapiClient();
-    this.phoneService.sendMessageWithTemplate(
-      to,
-      signName,
-      templateCode,
-      templateParam
-    );
+    this.phoneService.sendMessageWithTemplate(data);
   }
-
-  @Get("test")
-  async sendSMSTest() {
-    await this.phoneService.createDysmsapiClient();
-    this.phoneService.sendMessageWithTemplate(
-      "15008476428",
-      '来自奢小墩',
-      'SMS_293095094',
-      `{"code":"1001"}`
-    );
-  } 
 }
