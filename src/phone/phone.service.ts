@@ -5,6 +5,8 @@ import Util, * as $Util from "@alicloud/tea-util";
 import { ConfigService } from "../common/config/config.service";
 import { sendSMSDto } from "src/common/dto/send.sms.dto";
 import { ClientProxy } from "@nestjs/microservices";
+import { SendSMSWithUserDto } from "src/common/dto/send.sms.with.user.dto";
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class PhoneService {
@@ -24,14 +26,14 @@ export class PhoneService {
   }
 
   async sendMessageWithTemplate(
-    data: sendSMSDto
-  ) {
+    data: SendSMSWithUserDto
+  ): Promise<Boolean> {
     try {
       const sendSmsRequest = new $Dysmsapi20170525.SendSmsRequest({
-        phoneNumbers: data.to,
-        signName: data.signName,
-        templateCode: data.templateCode,
-        templateParam: data.templateParam,
+        phoneNumbers: data.data.to,
+        signName: data.data.signName,
+        templateCode: data.data.templateCode,
+        templateParam: data.data.templateParam,
       });
 
       const runtime = new $Util.RuntimeOptions({});
@@ -39,6 +41,7 @@ export class PhoneService {
       console.log(result);
     }
     catch (ex) {
+      console.error(ex);
       await firstValueFrom(
         this.clientLog.send<object>(
           { cmd: 'addLog' },
