@@ -22,6 +22,7 @@
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^2.0.24",
     "@alicloud/openapi-client": "^0.4.9",
+    "@alicloud/tea-util": "^1.4.9",
     "@nestcloud/config": "^0.7.17",
     "@nestjs/common": "^10.3.8",
     "@nestjs/config": "^3.2.2",
@@ -33,7 +34,8 @@
     "consul": "^1.2.0",
     "nodemailer": "^6.9.13",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "twfw": "file:"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

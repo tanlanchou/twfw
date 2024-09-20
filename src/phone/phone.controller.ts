@@ -24,6 +24,6 @@ export class PhoneController {
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
   async sendSMS(data: SendSMSWithUserDto) {
     await this.phoneService.createDysmsapiClient();
-    this.phoneService.sendMessageWithTemplate(data);
+    return this.phoneService.sendMessageWithTemplate(data);
   }
 }
