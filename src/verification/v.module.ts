@@ -5,40 +5,24 @@ import { EmailController } from './email.controller';
 import { VService } from './v.service';
 import { ConfigService } from '../config/config.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import listen_microservice from 'src/common/helper/listenMicroservice';
+
+//listen_microservice
 
 @Module({
   imports: [
     ClientsModule.registerAsync([
       {
         name: 'MICROSERVICE_EMAIL_CLIENT',
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            host: (await configService.get('mail')).out.host,
-            port: (await configService.get('mail')).out.port,
-          },
-        }),
+        useFactory: listen_microservice("micMail"),
         inject: [ConfigService],
       }, {
         name: 'MICROSERVICE_PHONE_CLIENT',
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            host: (await configService.get('phone')).out.host,
-            port: (await configService.get('phone')).out.port,
-          },
-        }),
-        inject: [ConfigService],
+        useFactory: listen_microservice("micSms"),
       },
       {
         name: "MICROSERVICE_LOG_CLIENT",
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            host: (await configService.get("log")).out.host,
-            port: (await configService.get("log")).out.port,
-          },
-        }),
+        useFactory: listen_microservice("micLog"),
         inject: [ConfigService],
       }
     ]),

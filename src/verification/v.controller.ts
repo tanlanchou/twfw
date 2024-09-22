@@ -9,10 +9,15 @@ import {
 import { MessagePattern } from "@nestjs/microservices";
 import { VService } from "./v.service";
 import { ClientProxy } from "@nestjs/microservices";
-import { sendType } from "./sendType";
 import { firstValueFrom } from "rxjs";
 import { ConfigService } from "../config/config.service";
-import { SendCodeWithUserDto } from "./send.code.dto";
+import { SendCodeWithUserDto } from "src/common/dto/send.verifcation.code.dto";
+import { sendType } from "src/common/enum/sendType";
+import { Action } from "src/common/enum/action";
+import { resultCode, success, error } from "src/common/helper/result";
+import { LogStatus } from "src/common/enum/log";
+import { NetworkUtils } from "src/common/helper/ip";
+import { codeWithUserDto } from "src/common/dto/verifcation.code.dto";
 
 @Controller("sms")
 @Injectable()
@@ -28,6 +33,11 @@ export class PhoneController {
     @MessagePattern({ cmd: "sendRegisterCode" })
     @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
     async sendSMS(data: SendCodeWithUserDto) {
+        let returnResult = {
+            status: false,
+            message: ""
+        }
+
         try {
             const config = await this.configService.get("verification_code");
             const regConfig = config && config.codeConfig && config.codeConfig.reg;
@@ -35,10 +45,12 @@ export class PhoneController {
                 throw new Error("注册验证码配置不存在");
             }
 
-            const code = await this.vService.buildCode(data.config.userinfo);
+            const code = await this.vService.buildCode(data.user);
+            let result;
+
             switch (data.config.type) {
                 case sendType.EMAIL:
-                    await firstValueFrom(this.clientEmail.send<object>({ cmd: "sendEmail" }, {
+                    result = await firstValueFrom(this.clientEmail.send<object>({ cmd: "sendEmail" }, {
                         data: {
                             to: data.config.to,
                             subject: regConfig.email.subject,
@@ -47,7 +59,7 @@ export class PhoneController {
                     }));
                     break;
                 case sendType.SMS:
-                    await firstValueFrom(this.clientPhone.send<object>({ cmd: "sendSMS" }, {
+                    result = await firstValueFrom(this.clientPhone.send<object>({ cmd: "sendSMS" }, {
                         to: data.config.to,
                         signName: regConfig.sms.signName,
                         templateCode: regConfig.sms.templateCode,
@@ -57,19 +69,37 @@ export class PhoneController {
                 default:
                     throw new Error("错误的发送类型");
             }
+
+            if (result.code == resultCode.success) {
+                return success(null);
+            }
+            else {
+                throw new Error(result.message);
+            }
         }
         catch (ex) {
-            await firstValueFrom(this.clientLog.send<object>({ cmd: "addLog" }, {
-                operation: "SEND_REG_CODE",
-                operator: data.user.name,
-                platform: data.user.platform,
-                details: `${ex.message}`
-            }));
+            await firstValueFrom(
+                this.clientLog.send<object>(
+                    { cmd: 'addLog' },
+                    {
+                        operation: Action.SEND_VERIFCATION_CODE,
+                        operator: data.user.name,
+                        platform: data.user.platform,
+                        details: `
+                            ip: ${data.user.ip || NetworkUtils.getLocalIpAddress()}
+                            message:${ex.message}
+                        `,
+                        status: LogStatus.ERROR,
+                    },
+                ),
+            );
         }
     }
 
-    @Get("test")
-    async sendSMSTest() {
-
+    @MessagePattern({ cmd: "verifyCode" })
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async verifyCode(data: codeWithUserDto) {
+        this.vService.verify()
     }
+
 }

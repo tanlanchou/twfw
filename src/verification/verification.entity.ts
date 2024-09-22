@@ -10,4 +10,7 @@ export class VerificationCodeEntity {
 
     @Column({ type: 'datetime' })
     created_at: Date;
+
+    @Column({ type: 'char', length: 100 })
+    platform: string;
 }

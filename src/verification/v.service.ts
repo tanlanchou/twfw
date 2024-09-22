@@ -3,6 +3,7 @@ import { ConfigService } from "../config/config.service";
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { VerificationCodeEntity } from './verification.entity';
+import { UserDto } from "src/common/dto/user.dto";
 
 @Injectable()
 export class VService {
@@ -24,11 +25,12 @@ export class VService {
     }
 
 
-    async buildCode(username: string) {
+    async buildCode(user: UserDto) {
         //生成6位验证码
         const code = this.generateVerificationCode();
         await this.VerificationCodeRepository.save({
-            userId: username,
+            userId: user.id,
+            platform: user.platform,
             code: code,
             createAt: new Date()
         });
@@ -36,12 +38,12 @@ export class VService {
         return code;
     }
 
-    async verify(username: string, code: string): Promise<boolean> {
+    async verify(code: string, user: UserDto): Promise<boolean> {
         const verificationCode = await this.VerificationCodeRepository.findOne({
-            where: { userId: username, code: code }
+            where: { userId: user.id, platform: user.platform, code: code }
         });
         if (verificationCode) {
-            await this.VerificationCodeRepository.delete(username);
+            await this.VerificationCodeRepository;
             return true;
         } else {
             return false;   // 验证失败
