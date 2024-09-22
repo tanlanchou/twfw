@@ -10,6 +10,7 @@ import { firstValueFrom } from 'rxjs';
 import { NetworkUtils } from "src/common/helper/ip";
 import { ErrorCode, getErrorMessageByCode } from "./apiErrorCode";
 import { result, success, error } from "src/common/helper/result";
+import { Action } from "src/common/enum/action";
 
 @Injectable()
 export class PhoneService {
@@ -95,7 +96,7 @@ export class PhoneService {
         this.clientLog.send<object>(
           { cmd: 'addLog' },
           {
-            operation: 'SEND_EMAIL',
+            operation: Action.SEND_SMS,
             operator: data.user.name,
             platform: data.user.platform,
             details: `
