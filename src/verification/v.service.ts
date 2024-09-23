@@ -1,5 +1,5 @@
 import { Controller, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "../config/config.service";
+import { ConfigService } from "src/common/config/config.service";
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { VerificationCodeEntity } from './verification.entity';

@@ -10,7 +10,7 @@ import { MessagePattern } from "@nestjs/microservices";
 import { VService } from "./v.service";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
-import { ConfigService } from "../config/config.service";
+import { ConfigService } from "src/common/config/config.service";;
 import { SendCodeWithUserDto } from "src/common/dto/send.verifcation.code.dto";
 import { sendType } from "src/common/enum/sendType";
 import { Action } from "src/common/enum/action";
@@ -18,10 +18,11 @@ import { resultCode, success, error } from "src/common/helper/result";
 import { LogStatus } from "src/common/enum/log";
 import { NetworkUtils } from "src/common/helper/ip";
 import { codeWithUserDto } from "src/common/dto/verifcation.code.dto";
+import { LogMethods } from "src/common/enum/methods";
 
-@Controller("sms")
+@Controller("verification")
 @Injectable()
-export class PhoneController {
+export class VController {
     constructor(
         private readonly vService: VService,
         @Inject("MICROSERVICE_LOG_CLIENT") private readonly clientLog: ClientProxy,
@@ -48,22 +49,26 @@ export class PhoneController {
             const code = await this.vService.buildCode(data.user);
             let result;
 
-            switch (data.config.type) {
+            switch (data.data.type) {
                 case sendType.EMAIL:
                     result = await firstValueFrom(this.clientEmail.send<object>({ cmd: "sendEmail" }, {
                         data: {
-                            to: data.config.to,
+                            to: data.data.to,
                             subject: regConfig.email.subject,
                             text: regConfig.email.text.replace("{{code}}", code),
-                        }
+                        },
+                        user: data.user
                     }));
                     break;
                 case sendType.SMS:
                     result = await firstValueFrom(this.clientPhone.send<object>({ cmd: "sendSMS" }, {
-                        to: data.config.to,
-                        signName: regConfig.sms.signName,
-                        templateCode: regConfig.sms.templateCode,
-                        templateParam: regConfig.sms.templateParam.replace("{{code}}", code),
+                        data: {
+                            to: data.data.to,
+                            signName: regConfig.sms.signName,
+                            templateCode: regConfig.sms.templateCode,
+                            templateParam: regConfig.sms.templateParam.replace("{{code}}", code),
+                        },
+                        user: data.user
                     }));
                     break;
                 default:
@@ -80,7 +85,7 @@ export class PhoneController {
         catch (ex) {
             await firstValueFrom(
                 this.clientLog.send<object>(
-                    { cmd: 'addLog' },
+                    { cmd: LogMethods.LOG_ADD },
                     {
                         operation: Action.SEND_VERIFCATION_CODE,
                         operator: data.user.name,
@@ -93,13 +98,20 @@ export class PhoneController {
                     },
                 ),
             );
+            return error(ex.message);
         }
     }
 
     @MessagePattern({ cmd: "verifyCode" })
     @UsePipes(new ValidationPipe({ transform: true }))
     async verifyCode(data: codeWithUserDto) {
-        this.vService.verify()
+        const result = await this.vService.verify(data.data.code, data.user);
+        if (result) {
+            return success(null);
+        }
+        else {
+            return error("验证码错误");
+        }
     }
 
 }

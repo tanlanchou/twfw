@@ -34,7 +34,7 @@ COPY --from=BUILD_IMAGE /usr/src/app/node_modules ./node_modules
 COPY --from=BUILD_IMAGE /usr/src/app/dist ./dist
 
 # 暴露端口
-EXPOSE 8105
+EXPOSE 8106
 
 # 运行应用程序
 CMD [ "node", "dist/main.js" ]

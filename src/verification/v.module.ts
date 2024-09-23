@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { VerificationCodeEntity } from "./verification.entity"
-import { EmailController } from './email.controller';
 import { VService } from './v.service';
-import { ConfigService } from '../config/config.service';
+import { VController } from './v.controller';
+import { ConfigService } from "../common/config/config.service";
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import listen_microservice from 'src/common/helper/listenMicroservice';
-
-//listen_microservice
 
 @Module({
   imports: [
@@ -19,6 +17,7 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
       }, {
         name: 'MICROSERVICE_PHONE_CLIENT',
         useFactory: listen_microservice("micSms"),
+        inject: [ConfigService],
       },
       {
         name: "MICROSERVICE_LOG_CLIENT",
@@ -45,7 +44,7 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
     TypeOrmModule.forFeature([VerificationCodeEntity]),
   ],
   providers: [VService],
-  controllers: [EmailController],
+  controllers: [VController],
   exports: [VService],
 })
 export class VModule { }
