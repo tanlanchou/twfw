@@ -4,11 +4,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { VerificationCodeEntity } from './verification.entity';
 import { UserDto } from "src/common/dto/user.dto";
+import { LessThanOrEqual } from 'typeorm';
+import { GlobalService } from 'src/common/helper/global.service'
 
 @Injectable()
 export class VService {
     constructor(private readonly configService: ConfigService, @InjectRepository(VerificationCodeEntity)
-    private readonly VerificationCodeRepository: Repository<VerificationCodeEntity>) { }
+    private readonly VerificationCodeRepository: Repository<VerificationCodeEntity>, private readonly globalService: GlobalService) { }
 
     private generateVerificationCode(): string {
         const digits = '0123456789';
@@ -40,10 +42,15 @@ export class VService {
 
     async verify(code: string, user: UserDto): Promise<boolean> {
         const verificationCode = await this.VerificationCodeRepository.findOne({
-            where: { userId: user.id, platform: user.platform, code: code }
+            where: {
+                userId: user.id,
+                platform: user.platform,
+                code: code,
+                created_at: LessThanOrEqual(new Date(Date.now() - this.globalService.getGlobalData().maxVerificationCode))
+            }
         });
         if (verificationCode) {
-            await this.VerificationCodeRepository;
+
             return true;
         } else {
             return false;   // 验证失败
