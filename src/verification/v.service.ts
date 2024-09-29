@@ -15,7 +15,7 @@ export class VService {
     private generateVerificationCode(): string {
         const digits = '0123456789';
         const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-        const allCharacters = digits + letters;
+        const allCharacters = digits;
 
         let code = '';
         for (let i = 0; i < 6; i++) {
@@ -34,10 +34,25 @@ export class VService {
             userId: user.id,
             platform: user.platform,
             code: code,
-            createAt: new Date()
+            created_at: new Date()
         });
 
         return code;
+    }
+
+    async deleteExpireCode() {
+        const twoHoursAgo = new Date(Date.now() - this.globalService.getGlobalData().maxVerificationCode);
+
+        this.VerificationCodeRepository.delete({
+            created_at: LessThanOrEqual(twoHoursAgo)
+        });
+    }
+
+    async deleteVerificationCode(user: UserDto) {
+        await this.VerificationCodeRepository.delete(({
+            userId: user.id,
+            platform: user.platform
+        }))
     }
 
     async verify(code: string, user: UserDto): Promise<boolean> {
@@ -50,6 +65,7 @@ export class VService {
             }
         });
         if (verificationCode) {
+            this.deleteVerificationCode(user);
             return true;
         } else {
             return false;   // 验证失败
