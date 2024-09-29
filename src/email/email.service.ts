@@ -29,7 +29,7 @@ export class EmailService {
         from: mailOptions.config.from,
         to: data.data.to,
         subject: data.data.subject,
-        text: data.data.text,
+        html: data.data.text,
       });
       return true;
     } catch (error) {
