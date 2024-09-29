@@ -50,7 +50,6 @@ export class VService {
             }
         });
         if (verificationCode) {
-
             return true;
         } else {
             return false;   // 验证失败
