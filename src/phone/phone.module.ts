@@ -14,11 +14,6 @@ import listen_microservice from "src/common/helper/listenMicroservice";
         useFactory: listen_microservice("micLog"),
         inject: [ConfigService],
       },
-      // {
-      //   name: "MICROSERVICE_JWT_CLIENT",
-      //   useFactory: listen_microservice("micJwt"),
-      //   inject: [ConfigService],
-      // },
     ]),
   ],
   providers: [PhoneService],
