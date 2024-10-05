@@ -36,5 +36,5 @@ COPY --from=BUILD_IMAGE /usr/src/app/dist ./dist
 # 暴露端口
 EXPOSE 8102
 
-# 运行应用程序
-CMD [ "node", "dist/main.js" ]
+# 运行应用程序CMD [ "node", "dist/main.js" ]
+

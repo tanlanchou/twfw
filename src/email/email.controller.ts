@@ -14,6 +14,8 @@ import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { NetworkUtils } from 'src/common/helper/ip';
 import { error, result, success } from 'src/common/helper/result';
+import * as _ from 'lodash';
+import { IPIntervalService } from 'src/common/ipInterval/ip.interval.service';
 
 @Controller('email')
 @Injectable()
@@ -21,6 +23,7 @@ export class EmailController {
   constructor(
     private readonly emailService: EmailService,
     @Inject('MICROSERVICE_LOG_CLIENT') private readonly client: ClientProxy,
+    private readonly ipIntervalService: IPIntervalService,
   ) { }
 
   @MessagePattern({ cmd: 'sendEmail' })
@@ -28,7 +31,19 @@ export class EmailController {
   async sendMail(data: SendEmailWithUserDto): Promise<result> {
     let result: boolean;
     try {
+      const ip = data.user.ip;
+
+      if (_.isEmpty(ip)) {
+        return error(`未知IP`);
+      }
+
+      const isEable = await this.ipIntervalService.IsEnable(ip);
+      if (!isEable) {
+        return error("间隔时间未到，不允许发送");
+      }
+
       result = await this.emailService.sendMail(data);
+      this.ipIntervalService.set(ip);
       return success(result);
     } catch (ex) {
       console.error(ex);
