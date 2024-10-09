@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from "./user.entity"
+import { UserEntity } from "../common/entity/user.entity"
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { ConfigService } from "../common/config/config.service";
@@ -49,4 +49,4 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
     controllers: [UserController],
     exports: [UserService],
 })
-export class VModule { }
+export class UserModule { }
