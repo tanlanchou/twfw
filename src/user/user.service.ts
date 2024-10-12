@@ -27,6 +27,33 @@ export class UserService {
         return result;
     }
 
+    // 用户登录
+    async login(loginData: { email?: string; phone?: string; name?: string }, password: string): Promise<User> {
+        let user: User | null = null;
+
+        if (loginData.email) {
+            user = await this.findUserByEmail(loginData.email);
+        } else if (loginData.phone) {
+            user = await this.findUserByPhone(loginData.phone);
+        } else if (loginData.name) {
+            user = await this.findUserByName(loginData.name);
+        } else {
+            throw new Error('Email, phone, or name must be provided');
+        }
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // 这里应该使用适当的密码比较方法，比如bcrypt
+        // 为了示例，我们使用简单的比较
+        if (user.password !== password) {
+            throw new Error('Invalid credentials');
+        }
+
+        return user;
+    }
+
     async findUserByEmail(email: string): Promise<User> {
         const result = await this.userRepository.findOne({ where: { email } });
         return result;

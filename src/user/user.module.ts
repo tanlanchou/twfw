@@ -24,8 +24,17 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
                 name: "MICROSERVICE_VERIFICATION_CLIENT",
                 useFactory: listen_microservice("micVerification"),
                 inject: [ConfigService],
-            }
-            
+            },
+            {
+                name: "MICROSERVICE_MAIL_CLIENT",
+                useFactory: listen_microservice("micMail"),
+                inject: [ConfigService],
+            },
+            {
+                name: "MICROSERVICE_SMS_CLIENT",
+                useFactory: listen_microservice("micSms"),
+                inject: [ConfigService],
+            },
         ]),
         TypeOrmModule.forRootAsync({
             useFactory: async (consulService: ConfigService) => {
