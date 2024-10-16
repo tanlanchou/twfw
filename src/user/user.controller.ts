@@ -9,6 +9,7 @@ import {
     Injectable,
     UsePipes,
     ValidationPipe,
+    Logger,
 } from "@nestjs/common";
 import { MessagePattern } from "@nestjs/microservices";
 import { UserService } from "./user.service";
@@ -29,6 +30,7 @@ import { generateID } from "src/common/helper/uuid";
 import Platform from "src/common/enum/platform";
 import { UserEntity } from "src/common/entity/user.entity";
 import { UserStatus } from "src/common/enum/userStatus";
+import * as crypto from 'crypto';
 
 
 @Controller("user")
@@ -88,6 +90,7 @@ export class UserController {
                 return success(`发送成功`);
             }
             else {
+                Logger.log(`获取验证码发送失败, 结果:${JSON.stringify(result)}`)
                 return result;
             }
         }
@@ -202,10 +205,13 @@ export class UserController {
     @Post("register")
     async register(@Body() data: RegisterDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
-        const isEmail = _.isEmpty(_.get(data, "data.email"));
-        const isPhone = _.isEmpty(_.get(data, "data.phone_number"));
-        const platform = data.user.platform || Platform.SICIAL_CHECK;
+        const isEmail = !_.isEmpty(_.get(data, "data.email"));
+        const isPhone = !_.isEmpty(_.get(data, "data.phone_number"));
+        const platform = _.get(data, "user.platform") || Platform.SICIAL_CHECK;
         const name = _.get(data, "user.name");
+
+        if (!_.has(data, "user.ip")) _.set(data, "user.ip", ip)
+        if (!_.has(data, "user.platform")) _.set(data, "user.platform", platform)
 
         try {
             if (isEmail && isPhone)
@@ -235,6 +241,14 @@ export class UserController {
                 return error("用户名不能为空");
             }
 
+            // 获取原始密码
+            const originalPassword = _.get(data, "data.password");
+            // 创建注册时间
+            const registrationTime = new Date();
+            // 使用MD5加密密码，并用用户名和注册时间作为salt
+            const salt = `${name}${registrationTime.getTime()}`;
+            const hashedPassword = crypto.createHash('md5').update(originalPassword + salt).digest('hex');
+
             const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": "verifyCode" }, {
                 data: { code },
                 "user": {
@@ -254,10 +268,10 @@ export class UserController {
             user.ip = ip;
             user.languagePreference = "ZH-CN";
             user.lastLoginTime = new Date();
-            user.password = _.get(data, "data.password");
+            user.password = hashedPassword;
             user.phoneNumber = _.get(data, "data.phone_number");
             user.platform = platform;
-            user.registrationTime = new Date();
+            user.registrationTime = registrationTime;
             user.status = UserStatus.TOBEACTIVE;
             user.username = _.get(data, "data.name", name);
 
@@ -265,13 +279,14 @@ export class UserController {
 
             if (isEmail) {
                 const email = _.get(data, "data.email");
-                const mailConfig = await this.configService.get("mailConfig");
-                const title = mailConfig.registerSuccessTitle.replace("{{name}}", user.username);
-                const content = mailConfig.registerSuccessContent.replace("{{name}}", user.username);
-                await firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
+                const userConfig = await this.configService.get("user");
+                const title = userConfig.mailConfig.registerSuccessTitle.replace("{{name}}", user.username);
+                const content = userConfig.mailConfig.registerSuccessContent.replace("{{name}}", user.username);
+                const mailResult = await firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
                     data: { "to": email, "subject": title, "text": content },
                     user: _.get(data, "user")
                 }));
+                Logger.log(`注册成功邮件发送结果: ${JSON.stringify(mailResult)}`);
             }
             else if (isPhone) {
                 //暂不做处理, 因为还不支持除法验证码以外的短
@@ -474,6 +489,99 @@ export class UserController {
                         operator: "System",
                         platform: Platform.SICIAL_CHECK,
                         details: `
+                            message: ${errorMessage}
+                        `,
+                        status: LogStatus.ERROR,
+                    },
+                ),
+            );
+            return error(errorMessage);
+        }
+    }
+
+    @Post("changePassword")
+    async changePassword(@Body() data: { userId: number, code: string, newPassword: string }) {
+        const { userId, code, newPassword } = data;
+        const ip = NetworkUtils.getLocalIpAddress();
+        const platform = Platform.SICIAL_CHECK;
+
+        try {
+            // 验证必填字段
+            if (!userId || !code || !newPassword) {
+                return error("userId, code, 和 newPassword 都是必填项");
+            }
+
+            // 查找用户
+            const user = await this.userService.findUserById(userId);
+            if (!user) {
+                return error("用户未找到");
+            }
+
+            // 验证验证码
+            const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": "verifyCode" }, {
+                data: { code },
+                user: {
+                    name: user.username,
+                    id: userId.toString(),
+                    ip: ip,
+                    platform: platform
+                }
+            }));
+
+            if (vResult.code !== 200) {
+                return error(vResult.msg);
+            }
+
+            // 更新密码
+            const salt = `${user.username}${new Date().getTime()}`;
+            const hashedPassword = crypto.createHash('md5').update(newPassword + salt).digest('hex');
+
+            user.password = hashedPassword;
+            await this.userService.updateUser(userId, user);
+
+            if (!_.isEmpty(user.email)) {
+                const userConfig = await this.configService.get("user");
+                const title = userConfig.mailConfig.passwordChangeSuccessTitle.replace("{{name}}", user.username);
+                const content = userConfig.mailConfig.passwordChangeSuccessContent.replace("{{name}}", user.username);
+                await firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
+                    data: { "to": user.email, "subject": title, "text": content },
+                    user: _.get(data, "user")
+                }));
+            }
+
+            if (!_.isEmpty(user.phoneNumber)) {
+                //todo 暂不支持
+            }
+
+            // 记录成功日志
+            await firstValueFrom(
+                this.clientLog.send<object>(
+                    { cmd: LogMethods.LOG_ADD },
+                    {
+                        operation: "changePassword",
+                        operator: user.username,
+                        platform: platform,
+                        details: `
+                            ip: ${ip}
+                            message: 密码修改成功
+                        `,
+                        status: LogStatus.SUCCESS,
+                    },
+                ),
+            );
+
+            return success("密码修改成功");
+        } catch (ex) {
+            const errorMessage = _.get(ex, "message", "修改密码时发生未知错误");
+            await firstValueFrom(
+                this.clientLog.send<object>(
+                    { cmd: LogMethods.LOG_ADD },
+                    {
+                        operation: "changePassword",
+                        operator: "System",
+                        platform: platform,
+                        details: `
+                            ip: ${ip}
                             message: ${errorMessage}
                         `,
                         status: LogStatus.ERROR,
