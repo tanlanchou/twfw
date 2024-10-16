@@ -109,8 +109,6 @@ export class VController {
 
         const code = await this.vService.buildCode(data.user);
         let result;
-        console.log(typeof sendType.EMAIL);
-        console.log(typeof sendType.SMS);
 
         switch (data.data.type) {
             case sendType.EMAIL:
@@ -142,7 +140,7 @@ export class VController {
             return success(null);
         }
         else {
-            throw new Error(result.message);
+            throw new Error(result.msg);
         }
     }
 
