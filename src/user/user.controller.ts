@@ -10,6 +10,8 @@ import {
     UsePipes,
     ValidationPipe,
     Logger,
+    UseInterceptors,
+    Req,
 } from "@nestjs/common";
 import { MessagePattern } from "@nestjs/microservices";
 import { UserService } from "./user.service";
@@ -31,7 +33,8 @@ import Platform from "src/common/enum/platform";
 import { UserEntity } from "src/common/entity/user.entity";
 import { UserStatus } from "src/common/enum/userStatus";
 import * as crypto from 'crypto';
-
+import { VerifyTokenInterceptor } from 'src/common/interceptor/verify.token.interceptor'
+import { Request } from "express";
 
 @Controller("user")
 @Injectable()
@@ -272,8 +275,9 @@ export class UserController {
             user.phoneNumber = _.get(data, "data.phone_number");
             user.platform = platform;
             user.registrationTime = registrationTime;
-            user.status = UserStatus.TOBEACTIVE;
+            user.status = UserStatus.ACTIVE;
             user.username = _.get(data, "data.name", name);
+            user.salt = salt;
 
             this.userService.createUser(user);
 
@@ -282,11 +286,16 @@ export class UserController {
                 const userConfig = await this.configService.get("user");
                 const title = userConfig.mailConfig.registerSuccessTitle.replace("{{name}}", user.username);
                 const content = userConfig.mailConfig.registerSuccessContent.replace("{{name}}", user.username);
-                const mailResult = await firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
-                    data: { "to": email, "subject": title, "text": content },
-                    user: _.get(data, "user")
-                }));
-                Logger.log(`注册成功邮件发送结果: ${JSON.stringify(mailResult)}`);
+
+                //强制60秒后发送邮件
+                setTimeout(() => {
+                    firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
+                        data: { "to": email, "subject": title, "text": content },
+                        user: _.get(data, "user")
+                    })).then(mailResult => {
+                        Logger.log(`注册成功邮件发送结果: ${JSON.stringify(mailResult)}`);
+                    })
+                }, 1000 * 60);
             }
             else if (isPhone) {
                 //暂不做处理, 因为还不支持除法验证码以外的短
@@ -316,23 +325,26 @@ export class UserController {
 
     @Post("login")
     async login(@Body() data: LoginDtoWithUser) {
-        const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
-        const email = _.get(data, "data.email");
-        const phone = _.get(data, "data.phone_number")
-        const isEmail = _.isEmpty(email);
-        const isPhone = _.isEmpty(phone);
-        const platform = data.user.platform || Platform.SICIAL_CHECK;
-        const name = _.get(data, "user.name");
+        const ip = _.get(data, 'user.ip', NetworkUtils.getLocalIpAddress());
+        const email = _.get(data, 'data.email');
+        const phone = _.get(data, 'data.phone_number');
+        const platform = _.get(data, 'user.platform', Platform.SICIAL_CHECK);
+        const name = _.get(data, 'user.name');
 
         try {
-            let loginResult: UserEntity;
-            if (!isEmail) {
-                loginResult = await this.userService.login({ email }, data.data.password);
-            } else if (!isPhone) {
-                loginResult = await this.userService.login({ phone }, data.data.password);
-            } else {
+            const loginData = _.pickBy({ email, phone }, _.identity);
+            if (_.isEmpty(loginData)) {
                 return error("请提供邮箱或手机号进行登录");
             }
+
+            const loginResult = await this.userService.login(loginData, _.get(data, 'data.password'));
+
+            _.assign(data.user, {
+                id: loginResult.id,
+                name: loginResult.username,
+                platform: loginResult.platform,
+                ip: loginResult.ip
+            });
 
             await firstValueFrom(
                 this.clientLog.send<object>(
@@ -351,11 +363,13 @@ export class UserController {
                     },
                 ),
             );
-            const tempUserId = (new Date()).getTime() + name + ip + loginResult.id
-            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: "createToken" }, { "userId": tempUserId }));
 
-            if (_.isEmpty(getTokenResult) || getTokenResult.code !== 200)
+            const tempUserId = `${Date.now()}-${name}-${ip}-${loginResult.id}`;
+            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: "createToken" }, { userId: tempUserId }));
+
+            if (_.get(getTokenResult, 'code') !== 200) {
                 return error("获取token失败");
+            }
 
             return success(getTokenResult.data);
         } catch (ex) {
@@ -462,43 +476,6 @@ export class UserController {
         }
     }
 
-    @Post("refreshToken")
-    async refreshToken(@Body() data: { token: string }) {
-        try {
-            const { token } = data;
-            if (_.isEmpty(token)) {
-                return error("Token is required");
-            }
-
-            const refreshResult = await firstValueFrom(
-                this.clientJwt.send<result>({ cmd: "refreshToken" }, { token })
-            );
-
-            if (_.isEmpty(refreshResult) || refreshResult.code !== 200) {
-                return error("Failed to refresh token");
-            }
-
-            return success(refreshResult.data);
-        } catch (ex) {
-            const errorMessage = _.get(ex, "message", "Unknown error occurred while refreshing token");
-            await firstValueFrom(
-                this.clientLog.send<object>(
-                    { cmd: LogMethods.LOG_ADD },
-                    {
-                        operation: "refreshToken",
-                        operator: "System",
-                        platform: Platform.SICIAL_CHECK,
-                        details: `
-                            message: ${errorMessage}
-                        `,
-                        status: LogStatus.ERROR,
-                    },
-                ),
-            );
-            return error(errorMessage);
-        }
-    }
-
     @Post("changePassword")
     async changePassword(@Body() data: { userId: number, code: string, newPassword: string }) {
         const { userId, code, newPassword } = data;
@@ -590,5 +567,11 @@ export class UserController {
             );
             return error(errorMessage);
         }
+    }
+
+    @Get("getUserInfo")
+    @UseInterceptors(VerifyTokenInterceptor)
+    async getUserInfo(@Req() request: Request) {
+        return request.user;
     }
 }

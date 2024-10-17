@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity as User } from '../common/entity/user.entity';
 import * as _ from 'lodash';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UserService {
@@ -38,17 +39,20 @@ export class UserService {
         } else if (loginData.name) {
             user = await this.findUserByName(loginData.name);
         } else {
-            throw new Error('Email, phone, or name must be provided');
+            throw new Error('请提供邮箱、手机号或用户名');
         }
 
         if (!user) {
-            throw new Error('User not found');
+            throw new Error('用户不存在');
         }
+
+        const salt = user.salt;
+        const hashedPassword = crypto.createHash('md5').update(password + salt).digest('hex');
 
         // 这里应该使用适当的密码比较方法，比如bcrypt
         // 为了示例，我们使用简单的比较
-        if (user.password !== password) {
-            throw new Error('Invalid credentials');
+        if (user.password !== hashedPassword) {
+            throw new Error('用户名或密码错误');
         }
 
         return user;
