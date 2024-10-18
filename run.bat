@@ -1,0 +1,1 @@
+docker run -d --name user_service_v0.1.0_container -p 8107:8107 --env CONSUL_HOST=%CONSUL_HOST% --restart always user_service_v0.1.0

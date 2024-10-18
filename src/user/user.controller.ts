@@ -78,6 +78,7 @@ export class UserController {
         }
 
         try {
+            Logger.log(`开始发送验证码 ${JSON.stringify(data)}`);
             const result = await firstValueFrom(this.clientVerification.send<result>({ "cmd": cmd },
                 {
                     "data": { "to": to, "type": type },
@@ -90,15 +91,17 @@ export class UserController {
                 }))
 
             if (result.code == 200) {
+                Logger.log(`获取验证码发送成功, 结果:${JSON.stringify(result)}`)
                 return success(`发送成功`);
             }
             else {
-                Logger.log(`获取验证码发送失败, 结果:${JSON.stringify(result)}`)
+                Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(result)}`)
                 return result;
             }
         }
         catch (ex) {
             const message = _.get(ex, "message", "未知错误");
+            Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(ex)}`)
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
@@ -437,7 +440,8 @@ export class UserController {
                 return error("获取token失败");
             }
 
-            await firstValueFrom(
+
+            firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
@@ -452,8 +456,8 @@ export class UserController {
                         `,
                         status: LogStatus.SUCCESS,
                     },
-                ),
-            );
+                )
+            )
 
             return success(getTokenResult.data);
         } catch (ex) {
@@ -477,19 +481,25 @@ export class UserController {
     }
 
     @Post("changePassword")
-    async changePassword(@Body() data: { userId: number, code: string, newPassword: string }) {
-        const { userId, code, newPassword } = data;
+    async changePassword(@Body() data: { email?: string, phone?: string, code: string, newPassword: string }) {
+        const { email, phone, code, newPassword } = data;
         const ip = NetworkUtils.getLocalIpAddress();
         const platform = Platform.SICIAL_CHECK;
 
         try {
             // 验证必填字段
-            if (!userId || !code || !newPassword) {
-                return error("userId, code, 和 newPassword 都是必填项");
+            if ((!email && !phone) || !code || !newPassword) {
+                return error("email 或 phone 必须提供一个, code 和 newPassword 都是必填项");
             }
 
             // 查找用户
-            const user = await this.userService.findUserById(userId);
+            let user: UserEntity;
+            if (email) {
+                user = await this.userService.findUserByEmail(email);
+            } else if (phone) {
+                user = await this.userService.findUserByPhone(phone);
+            }
+
             if (!user) {
                 return error("用户未找到");
             }
@@ -498,8 +508,8 @@ export class UserController {
             const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": "verifyCode" }, {
                 data: { code },
                 user: {
-                    name: user.username,
-                    id: userId.toString(),
+                    name: email || phone,
+                    id: email || phone,
                     ip: ip,
                     platform: platform
                 }
@@ -509,21 +519,33 @@ export class UserController {
                 return error(vResult.msg);
             }
 
-            // 更新密码
-            const salt = `${user.username}${new Date().getTime()}`;
-            const hashedPassword = crypto.createHash('md5').update(newPassword + salt).digest('hex');
+
+            const hashedPassword = crypto.createHash('md5').update(newPassword + user.salt).digest('hex');
 
             user.password = hashedPassword;
-            await this.userService.updateUser(userId, user);
+            await this.userService.updateUser(user.id, user);
 
             if (!_.isEmpty(user.email)) {
                 const userConfig = await this.configService.get("user");
                 const title = userConfig.mailConfig.passwordChangeSuccessTitle.replace("{{name}}", user.username);
                 const content = userConfig.mailConfig.passwordChangeSuccessContent.replace("{{name}}", user.username);
-                await firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
-                    data: { "to": user.email, "subject": title, "text": content },
-                    user: _.get(data, "user")
-                }));
+                setTimeout(() => {
+                    firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
+                        data: { "to": user.email, "subject": title, "text": content },
+                        user: {
+                            name: user.email,
+                            ip,
+                            id: user.id,
+                            platform,
+                        }
+                    })).then(notifcationResult => {
+                        Logger.log(`发送忘记密码通知邮件结果 ${JSON.stringify(notifcationResult)}`)
+                    }).catch(ex => {
+                        Logger.error(`发送忘记密码通知邮件失败: ${JSON.stringify(ex)}`);
+                    })
+                }, 1000 * 60);
+
+
             }
 
             if (!_.isEmpty(user.phoneNumber)) {
