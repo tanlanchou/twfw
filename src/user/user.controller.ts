@@ -23,9 +23,9 @@ import { UserEntity } from "src/common/entity/user.entity";
 import { UserStatus } from "src/common/enum/userStatus";
 import * as crypto from 'crypto';
 import { AccessVerifyInterceptor } from "src/common/interceptor/access.verify.interceptor";
+import { VerifyTokenInterceptor } from "src/common/interceptor/verify.token.interceptor";
 
 @Injectable()
-@UseInterceptors(AccessVerifyInterceptor)
 @Controller()
 export class UserController {
     constructor(
@@ -38,6 +38,7 @@ export class UserController {
         private readonly configService: ConfigService
     ) { }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "getCode" })
     async getCode(data: sendBaseModelWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
@@ -107,6 +108,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "checkName" })
     async checkName(data: { name: string, ip?: string, platform?: string }) {
         const { name, ip, platform } = data;
@@ -136,6 +138,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "checkPhone" })
     async checkPhone(data: { phone: string, ip?: string, platform?: string }) {
         const { phone, ip, platform } = data;
@@ -166,6 +169,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "checkEmail" })
     async checkEmail(data: { email: string, ip?: string, platform?: string }) {
         const { email, ip, platform } = data;
@@ -196,6 +200,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "register" })
     async register(data: RegisterDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
@@ -311,6 +316,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "login" })
     async login(data: LoginDtoWithUser) {
         const ip = _.get(data, 'user.ip', NetworkUtils.getLocalIpAddress());
@@ -380,6 +386,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "loginWithCode" })
     async loginWithCode(data: LoginDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
@@ -464,6 +471,7 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "changePassword" })
     async changePassword(data: { email?: string, phone?: string, code: string, newPassword: string }) {
         const { email, phone, code, newPassword } = data;
@@ -572,11 +580,11 @@ export class UserController {
         }
     }
 
+    @UseInterceptors(AccessVerifyInterceptor)
     @MessagePattern({ cmd: "getUserInfo" })
     async getUserInfo(data: { id: number }) {
         const user = await this.userService.findUserById(data.id);
+        _.unset(user, "password");
         return success(user);
     }
-
-
 }
