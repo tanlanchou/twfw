@@ -11,11 +11,6 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
     imports: [
         ClientsModule.registerAsync([
             {
-                name: "MICROSERVICE_LOG_CLIENT",
-                useFactory: listen_microservice("micLog"),
-                inject: [ConfigService],
-            },
-            {
                 name: "MICROSERVICE_VERIFICATION_CLIENT",
                 useFactory: listen_microservice("micVerification"),
                 inject: [ConfigService],

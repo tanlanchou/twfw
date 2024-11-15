@@ -1,31 +1,20 @@
 import {
     Controller,
-    Get,
-    Post,
-    Body,
-    Param,
-    Query,
     Inject,
     Injectable,
-    UsePipes,
-    ValidationPipe,
     Logger,
     UseInterceptors,
-    Req,
 } from "@nestjs/common";
 import { MessagePattern } from "@nestjs/microservices";
 import { UserService } from "./user.service";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
 import { ConfigService } from "src/common/config/config.service";
-import { Action } from "src/common/enum/action";
 import { success, error, result } from "src/common/helper/result";
 import { LogStatus } from "src/common/enum/log";
 import { NetworkUtils } from "src/common/helper/ip";
-import { codeWithUserDto } from "src/common/dto/verifcation.code.dto";
-import { UserDto } from "src/common/dto/user.dto";
 import { LogMethods } from "src/common/enum/methods";
-import { sendBaseModelWithUser, checkBaseModelWithUser, RegisterDto, RegisterDtoWithUser, LoginDtoWithUser } from "src/common/dto/user.work.flow.dto";
+import { sendBaseModelWithUser, RegisterDtoWithUser, LoginDtoWithUser } from "src/common/dto/user.work.flow.dto";
 import * as _ from "lodash";
 import { sendAction, sendType } from "src/common/enum/sendType";
 import { generateID } from "src/common/helper/uuid";
@@ -33,25 +22,24 @@ import Platform from "src/common/enum/platform";
 import { UserEntity } from "src/common/entity/user.entity";
 import { UserStatus } from "src/common/enum/userStatus";
 import * as crypto from 'crypto';
-import { VerifyTokenInterceptor } from 'src/common/interceptor/verify.token.interceptor'
-import { Request } from "express";
+import { AccessVerifyInterceptor } from "src/common/interceptor/access.verify.interceptor";
 
-@Controller("user")
 @Injectable()
+@UseInterceptors(AccessVerifyInterceptor)
+@Controller()
 export class UserController {
     constructor(
         private readonly userService: UserService,
         @Inject("MICROSERVICE_LOG_CLIENT") private readonly clientLog: ClientProxy,
         @Inject("MICROSERVICE_JWT_CLIENT") private readonly clientJwt: ClientProxy,
-        @Inject("MICROSERVICE_VERIFICATION_CLIENT") private readonly clientVerification:
-            ClientProxy,
+        @Inject("MICROSERVICE_VERIFICATION_CLIENT") private readonly clientVerification: ClientProxy,
         @Inject("MICROSERVICE_MAIL_CLIENT") private readonly clientMail: ClientProxy,
         @Inject("MICROSERVICE_SMS_CLIENT") private readonly clientSms: ClientProxy,
         private readonly configService: ConfigService
     ) { }
 
-    @Post("getCode")
-    async getCode(@Body() data: sendBaseModelWithUser) {
+    @MessagePattern({ cmd: "getCode" })
+    async getCode(data: sendBaseModelWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const id = _.get(data, "user.id", generateID());
         const platform = _.get(data, "user.platform", Platform.SICIAL_CHECK);
@@ -88,20 +76,18 @@ export class UserController {
                         "ip": ip,
                         "platform": platform
                     }
-                }))
+                }));
 
             if (result.code == 200) {
-                Logger.log(`获取验证码发送成功, 结果:${JSON.stringify(result)}`)
+                Logger.log(`获取验证码发送成功, 结果:${JSON.stringify(result)}`);
                 return success(`发送成功`);
-            }
-            else {
-                Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(result)}`)
+            } else {
+                Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(result)}`);
                 return result;
             }
-        }
-        catch (ex) {
+        } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
-            Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(ex)}`)
+            Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(ex)}`);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
@@ -121,10 +107,12 @@ export class UserController {
         }
     }
 
-    @Get("checkName")
-    async checkName(@Query("name") name: string, @Query("ip") ip: string, @Query("platform") platform: string) {
-        ip = ip || NetworkUtils.getLocalIpAddress();
-        platform = platform || Platform.SICIAL_CHECK;
+    @MessagePattern({ cmd: "checkName" })
+    async checkName(data: { name: string, ip?: string, platform?: string }) {
+        const { name, ip, platform } = data;
+        const userIp = ip || NetworkUtils.getLocalIpAddress();
+        const userPlatform = platform || Platform.SICIAL_CHECK;
+
         try {
             if (_.isEmpty(name)) return error("参数错误");
             const result = await this.userService.findUserByName(name);
@@ -136,88 +124,88 @@ export class UserController {
                 {
                     operation: "checkName",
                     operator: name,
-                    platform: platform,
+                    platform: userPlatform,
                     details: `
-                        ip: ${ip}
+                        ip: ${userIp}
                         message:${message}
                     `,
                     status: LogStatus.ERROR,
                 },
-            )
+            );
             return error(message);
         }
     }
 
-    @Get("checkPhone")
-    async checkPhone(@Query("phone") phone: string, @Query("ip") ip: string, @Query("platform") platform: string) {
-        ip = ip || NetworkUtils.getLocalIpAddress();
-        platform = platform || Platform.SICIAL_CHECK;
+    @MessagePattern({ cmd: "checkPhone" })
+    async checkPhone(data: { phone: string, ip?: string, platform?: string }) {
+        const { phone, ip, platform } = data;
+        const userIp = ip || NetworkUtils.getLocalIpAddress();
+        const userPlatform = platform || Platform.SICIAL_CHECK;
 
         if (_.isEmpty(phone)) return error("参数错误");
 
         try {
             const result = await this.userService.findUserByPhone(phone);
             return success(_.isEmpty(result));
-        }
-        catch (ex) {
+        } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
             this.clientLog.send<object>(
                 { cmd: LogMethods.LOG_ADD },
                 {
                     operation: "checkPhone",
                     operator: phone,
-                    platform: platform,
+                    platform: userPlatform,
                     details: `
-                        ip: ${ip}
+                        ip: ${userIp}
                         message:${message}
                     `,
                     status: LogStatus.ERROR,
                 },
-            )
+            );
             return error(message);
         }
     }
 
-    @Get("checkEmail")
-    async checkEmail(@Query("email") email: string, string, @Query("ip") ip: string, @Query("platform") platform: string) {
-        ip = ip || NetworkUtils.getLocalIpAddress();
-        platform = platform || Platform.SICIAL_CHECK;
+    @MessagePattern({ cmd: "checkEmail" })
+    async checkEmail(data: { email: string, ip?: string, platform?: string }) {
+        const { email, ip, platform } = data;
+        const userIp = ip || NetworkUtils.getLocalIpAddress();
+        const userPlatform = platform || Platform.SICIAL_CHECK;
 
         if (_.isEmpty(email)) return error("参数错误");
 
         try {
             const result = await this.userService.findUserByEmail(email);
             return success(_.isEmpty(result));
-        }
-        catch (ex) {
+        } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
             this.clientLog.send<object>(
                 { cmd: LogMethods.LOG_ADD },
                 {
                     operation: "checkEmail",
                     operator: email,
-                    platform: platform,
+                    platform: userPlatform,
                     details: `
-                    ip: ${ip}
+                    ip: ${userIp}
                     message:${message}
                 `,
                     status: LogStatus.ERROR,
                 },
-            )
+            );
             return error(message);
         }
     }
 
-    @Post("register")
-    async register(@Body() data: RegisterDtoWithUser) {
+    @MessagePattern({ cmd: "register" })
+    async register(data: RegisterDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const isEmail = !_.isEmpty(_.get(data, "data.email"));
         const isPhone = !_.isEmpty(_.get(data, "data.phone_number"));
         const platform = _.get(data, "user.platform") || Platform.SICIAL_CHECK;
         const name = _.get(data, "user.name");
 
-        if (!_.has(data, "user.ip")) _.set(data, "user.ip", ip)
-        if (!_.has(data, "user.platform")) _.set(data, "user.platform", platform)
+        if (!_.has(data, "user.ip")) _.set(data, "user.ip", ip);
+        if (!_.has(data, "user.platform")) _.set(data, "user.platform", platform);
 
         try {
             if (isEmail && isPhone)
@@ -228,8 +216,7 @@ export class UserController {
                 if (!_.isEmpty(result)) {
                     return error("该邮箱已被注册");
                 }
-            }
-            else if (isPhone) {
+            } else if (isPhone) {
                 const result = await this.userService.findUserByPhone(data.data.phone_number);
                 if (!_.isEmpty(result)) {
                     return error("该手机号已被注册");
@@ -297,16 +284,14 @@ export class UserController {
                         user: _.get(data, "user")
                     })).then(mailResult => {
                         Logger.log(`注册成功邮件发送结果: ${JSON.stringify(mailResult)}`);
-                    })
+                    });
                 }, 1000 * 60);
-            }
-            else if (isPhone) {
+            } else if (isPhone) {
                 //暂不做处理, 因为还不支持除法验证码以外的短
             }
 
             return success("注册成功");
-        }
-        catch (ex) {
+        } catch (ex) {
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
@@ -326,8 +311,8 @@ export class UserController {
         }
     }
 
-    @Post("login")
-    async login(@Body() data: LoginDtoWithUser) {
+    @MessagePattern({ cmd: "login" })
+    async login(data: LoginDtoWithUser) {
         const ip = _.get(data, 'user.ip', NetworkUtils.getLocalIpAddress());
         const email = _.get(data, 'data.email');
         const phone = _.get(data, 'data.phone_number');
@@ -395,8 +380,8 @@ export class UserController {
         }
     }
 
-    @Post("loginWithCode")
-    async loginWithCode(@Body() data: LoginDtoWithUser) {
+    @MessagePattern({ cmd: "loginWithCode" })
+    async loginWithCode(data: LoginDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const email = _.get(data, "data.email");
         const phone = _.get(data, "data.phone_number");
@@ -440,7 +425,6 @@ export class UserController {
                 return error("获取token失败");
             }
 
-
             firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
@@ -457,7 +441,7 @@ export class UserController {
                         status: LogStatus.SUCCESS,
                     },
                 )
-            )
+            );
 
             return success(getTokenResult.data);
         } catch (ex) {
@@ -480,8 +464,8 @@ export class UserController {
         }
     }
 
-    @Post("changePassword")
-    async changePassword(@Body() data: { email?: string, phone?: string, code: string, newPassword: string }) {
+    @MessagePattern({ cmd: "changePassword" })
+    async changePassword(data: { email?: string, phone?: string, code: string, newPassword: string }) {
         const { email, phone, code, newPassword } = data;
         const ip = NetworkUtils.getLocalIpAddress();
         const platform = Platform.SICIAL_CHECK;
@@ -519,7 +503,6 @@ export class UserController {
                 return error(vResult.msg);
             }
 
-
             const hashedPassword = crypto.createHash('md5').update(newPassword + user.salt).digest('hex');
 
             user.password = hashedPassword;
@@ -539,13 +522,11 @@ export class UserController {
                             platform,
                         }
                     })).then(notifcationResult => {
-                        Logger.log(`发送忘记密码通知邮件结果 ${JSON.stringify(notifcationResult)}`)
+                        Logger.log(`发送忘记密码通知邮件结果 ${JSON.stringify(notifcationResult)}`);
                     }).catch(ex => {
                         Logger.error(`发送忘记密码通知邮件失败: ${JSON.stringify(ex)}`);
-                    })
+                    });
                 }, 1000 * 60);
-
-
             }
 
             if (!_.isEmpty(user.phoneNumber)) {
@@ -591,9 +572,11 @@ export class UserController {
         }
     }
 
-    @Get("getUserInfo")
-    @UseInterceptors(VerifyTokenInterceptor)
-    async getUserInfo(@Req() request: Request) {
-        return request.user;
+    @MessagePattern({ cmd: "getUserInfo" })
+    async getUserInfo(data: { id: number }) {
+        const user = await this.userService.findUserById(data.id);
+        return success(user);
     }
+
+
 }
