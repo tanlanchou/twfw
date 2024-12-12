@@ -1,1 +1,1 @@
-docker run -d --name verification_code_v0.1.0_container -p 8106:8106 --env CONSUL_HOST=%CONSUL_HOST% --restart always verification_code_v0.1.0
+docker run -d --name verification_code_v0.1.0_container -p 8106:8106 --env CONSUL_HOST=%CONSUL_HOST%  --env CONSUL_TOKEN=%CONSUL_TOKEN% --restart always verification_code_v0.1.0
