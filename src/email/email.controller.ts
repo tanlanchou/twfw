@@ -4,6 +4,7 @@ import {
   Get,
   Inject,
   Injectable,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -16,6 +17,9 @@ import { NetworkUtils } from 'src/common/helper/ip';
 import { error, result, success } from 'src/common/helper/result';
 import * as _ from 'lodash';
 import { IPIntervalService } from 'src/common/ipInterval/ip.interval.service';
+import { Action } from 'src/common/enum/action';
+import { AccessVerifyInterceptor } from 'src/common/interceptor/access.verify.interceptor';
+import { LogMethods } from 'src/common/enum/methods';
 
 @Controller('email')
 @Injectable()
@@ -26,7 +30,8 @@ export class EmailController {
     private readonly ipIntervalService: IPIntervalService,
   ) { }
 
-  @MessagePattern({ cmd: 'sendEmail' })
+  @MessagePattern({ cmd: LogMethods.EMAIL_SEND })
+  @UseInterceptors(AccessVerifyInterceptor)
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
   async sendMail(data: SendEmailWithUserDto): Promise<result> {
     let result: boolean;
@@ -58,7 +63,7 @@ export class EmailController {
             operator: data.user.name,
             platform: data.user.platform,
             details: `
-          这封邮件是由${data.user.name}发出的, 
+          这封邮件是由${data.user.z}发出的, 
           标题是${data.data.subject}, 
           内容是${data.data.text}, 
           发送给${data.data.to},
