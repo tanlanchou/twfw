@@ -8,6 +8,7 @@ import { Action } from 'src/common/enum/action';
 import { NetworkUtils } from 'src/common/helper/ip';
 import { AccessVerifyInterceptor } from 'src/common/interceptor/access.verify.interceptor';
 import { LogMethods } from 'src/common/enum/methods';
+import { GetJwtDTO, RefreshJwtDTO, VerifyJwtDTO } from 'src/common/dto/jwt.dto';
 
 @Controller()
 export class JwtController {
@@ -15,7 +16,7 @@ export class JwtController {
 
   @MessagePattern({ cmd: LogMethods.JWT_CREATE_TOKEN })
   @UseInterceptors(AccessVerifyInterceptor)
-  async createToken(payload: JwtPayload): Promise<result> {
+  async createToken(payload: GetJwtDTO): Promise<result> {
     try {
       const r = await this.jwtService.createToken(payload);
       return success(r);
@@ -37,7 +38,7 @@ export class JwtController {
 
   @MessagePattern({ cmd: LogMethods.JWT_VERIFY_TOKEN })
   @UseInterceptors(AccessVerifyInterceptor)
-  async verifyToken(data: any): Promise<result> {
+  async verifyToken(data: VerifyJwtDTO): Promise<result> {
     try {
       return success(await this.jwtService.verifyToken(data.token));
     }
@@ -58,7 +59,7 @@ export class JwtController {
 
   @MessagePattern({ cmd: LogMethods.JWT_REFRESH_TOKEN })
   @UseInterceptors(AccessVerifyInterceptor)
-  async refreshToken(data: any): Promise<result> {
+  async refreshToken(data: RefreshJwtDTO): Promise<result> {
     try {
       return success(await this.jwtService.refreshToken(data.token));
     }
