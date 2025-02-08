@@ -20,7 +20,8 @@ import { IPIntervalService } from 'src/common/ipInterval/ip.interval.service';
 import { Action } from 'src/common/enum/action';
 import { AccessVerifyInterceptor } from 'src/common/interceptor/access.verify.interceptor';
 import { LogMethods } from 'src/common/enum/methods';
-
+import { getAbc } from 'src/common/helper/access.verifiy';
+import { ConfigService } from 'src/common/config/config.service';
 @Controller('email')
 @Injectable()
 export class EmailController {
@@ -28,6 +29,7 @@ export class EmailController {
     private readonly emailService: EmailService,
     @Inject('MICROSERVICE_LOG_CLIENT') private readonly client: ClientProxy,
     private readonly ipIntervalService: IPIntervalService,
+    private readonly configService: ConfigService
   ) { }
 
   @MessagePattern({ cmd: LogMethods.EMAIL_SEND })
@@ -35,6 +37,7 @@ export class EmailController {
   @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
   async sendMail(data: SendEmailWithUserDto): Promise<result> {
     let result: boolean;
+    let message: string = "";
     try {
       const ip = data.user.ip;
 
@@ -47,27 +50,32 @@ export class EmailController {
         return error("间隔时间未到，不允许发送");
       }
 
-      result = await this.emailService.sendMail(data);
+      await this.emailService.sendMail(data);
       this.ipIntervalService.set(ip);
-      return success(result);
+      result = true;
+      return success("发送成功");
     } catch (ex) {
-      console.error(ex);
+      result = false;
+      message = ex.message;
       return error(ex.message);
     } finally {
       //日志
+      const [curTime, abc] = await getAbc(this.configService);
       await firstValueFrom(
         this.client.send<object>(
           { cmd: 'addLog' },
           {
+            curTime,
+            abc,
             operation: 'SEND_EMAIL',
             operator: data.user.name,
             platform: data.user.platform,
             details: `
-          这封邮件是由${data.user.z}发出的, 
+          这封邮件是由${data.user.name}发出的, 
           标题是${data.data.subject}, 
           内容是${data.data.text}, 
           发送给${data.data.to},
-          IP:${data.user.ip || NetworkUtils.getLocalIpAddress()}`,
+          IP:${data.user.ip || NetworkUtils.getLocalIpAddress()},错误信息:${message}`,
             status: result ? 'success' : 'failure',
           },
         ),

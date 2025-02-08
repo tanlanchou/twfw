@@ -22,19 +22,14 @@ export class EmailService {
     });
   }
 
-  async sendMail(data: SendEmailWithUserDto): Promise<boolean> {
+  async sendMail(data: SendEmailWithUserDto): Promise<void> {
     const mailOptions = await this.configService.get('email');
-    try {
-      await this.transporter.sendMail({
-        from: mailOptions.config.from,
-        to: data.data.to,
-        subject: data.data.subject,
-        html: data.data.text,
-      });
-      return true;
-    } catch (error) {
-      console.error(error);
-      return false;
-    }
+
+    await this.transporter.sendMail({
+      from: mailOptions.config.from,
+      to: data.data.to,
+      subject: data.data.subject,
+      html: data.data.text,
+    });
   }
 }
