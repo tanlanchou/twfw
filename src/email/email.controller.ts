@@ -45,10 +45,10 @@ export class EmailController {
         return error(`未知IP`);
       }
 
-      const isEable = await this.ipIntervalService.IsEnable(ip);
-      if (!isEable) {
-        return error("间隔时间未到，不允许发送");
-      }
+      // const isEable = await this.ipIntervalService.IsEnable(ip);
+      // if (!isEable) {
+      //   return error("间隔时间未到，不允许发送");
+      // }
 
       await this.emailService.sendMail(data);
       this.ipIntervalService.set(ip);
