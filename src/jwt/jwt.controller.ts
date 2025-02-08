@@ -69,8 +69,8 @@ export class JwtController {
         { cmd: LogMethods.LOG_ADD },
         {
           operation: Action.REFRESH_TOKEN,
-          operator: "ttwatch",
-          platform: "ttwatch",
+          operator: "common",
+          platform: "common",
           details: `获取刷新TOKEN失败, 错误信息${ex.message}, ${NetworkUtils.getLocalIpAddress()}`
         },
       )
