@@ -3,6 +3,7 @@ import {
     Get,
     Inject,
     Injectable,
+    UseInterceptors,
     UsePipes,
     ValidationPipe,
 } from "@nestjs/common";
@@ -14,11 +15,13 @@ import { ConfigService } from "src/common/config/config.service";
 import { SendCodeWithUserDto } from "src/common/dto/send.verifcation.code.dto";
 import { sendType } from "src/common/enum/sendType";
 import { Action } from "src/common/enum/action";
-import { resultCode, success, error } from "src/common/helper/result";
+import { resultCode, success, error, result } from "src/common/helper/result";
 import { LogStatus } from "src/common/enum/log";
 import { NetworkUtils } from "src/common/helper/ip";
 import { codeWithUserDto } from "src/common/dto/verifcation.code.dto";
 import { LogMethods } from "src/common/enum/methods";
+import { getAbc } from "src/common/helper/access.verifiy";
+import { AccessVerifyInterceptor } from "src/common/interceptor/access.verify.interceptor";
 
 @Controller("verification")
 @Injectable()
@@ -31,30 +34,30 @@ export class VController {
         private readonly configService: ConfigService
     ) { }
 
-    @MessagePattern({ cmd: "sendRegisterCode" })
+    @MessagePattern({ cmd: LogMethods.VERIFICATION_SEND_REGISTER_CODE })
+    @UseInterceptors(AccessVerifyInterceptor)
     @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
-    async sendRegisterCode(data: SendCodeWithUserDto) {
-        let returnResult = {
-            status: false,
-            message: ""
-        }
+    async sendRegisterCode(data: SendCodeWithUserDto): Promise<result> {
 
         try {
             const config = await this.configService.get("verification_code");
             const regConfig = config && config.codeConfig && config.codeConfig.reg && config.codeConfig.reg[data.user.platform];
 
             if (!regConfig) {
-                throw new Error("注册验证码配置不存在");
+                return error("注册验证码配置不存在");
             }
 
             const r = await this.send(regConfig, data);
             return r;
         }
         catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService)
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
+                        curTime,
+                        abc,
                         operation: Action.SEND_VERIFCATION_CODE,
                         operator: data.user.name,
                         platform: data.user.platform,
@@ -70,7 +73,8 @@ export class VController {
         }
     }
 
-    @MessagePattern({ cmd: "sendForgetCode" })
+    @MessagePattern({ cmd: LogMethods.VERIFICATION_SEND_FORGET_CODE })
+    @UseInterceptors(AccessVerifyInterceptor)
     @UsePipes(new ValidationPipe({ transform: true })) // 自动验证和转换数据
     async sendForgetCode(data: SendCodeWithUserDto) {
 
@@ -86,14 +90,18 @@ export class VController {
             return r;
         }
         catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService)
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
+                        curTime,
+                        abc,
                         operation: Action.SEND_FORGET_CODE,
                         operator: data.user.name,
                         platform: data.user.platform,
                         details: `
+
                             ip: ${data.user.ip || NetworkUtils.getLocalIpAddress()}
                             message:${ex.message}
                         `,
@@ -108,11 +116,15 @@ export class VController {
     async send(regConfig: any, data: SendCodeWithUserDto) {
 
         const code = await this.vService.buildCode(data.user);
+        console.log(data.data.to, code);
         let result;
+        const [curTime, abc] = await getAbc(this.configService)
 
         switch (data.data.type) {
             case sendType.EMAIL:
                 result = await firstValueFrom(this.clientEmail.send<object>({ cmd: "sendEmail" }, {
+                    curTime,
+                    abc,
                     data: {
                         to: data.data.to,
                         subject: regConfig.email.subject,
@@ -123,6 +135,8 @@ export class VController {
                 break;
             case sendType.SMS:
                 result = await firstValueFrom(this.clientPhone.send<object>({ cmd: "sendSMS" }, {
+                    curTime,
+                    abc,
                     data: {
                         to: data.data.to,
                         signName: regConfig.sms.signName,
@@ -144,16 +158,40 @@ export class VController {
         }
     }
 
-    @MessagePattern({ cmd: "verifyCode" })
+    @MessagePattern({ cmd: LogMethods.VERIFICATION_VERIFY_CODE })
+    @UseInterceptors(AccessVerifyInterceptor)
     @UsePipes(new ValidationPipe({ transform: true }))
     async verifyCode(data: codeWithUserDto) {
-        const result = await this.vService.verify(data.data.code, data.user);
-        if (result) {
-            return success(null);
+        try {
+            const result = await this.vService.verify(data.data.code, data.user);
+            if (result) {
+                return success(null);
+            }
+            else {
+                return error("验证码错误");
+            }
         }
-        else {
-            return error("验证码错误");
+        catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService)
+            await firstValueFrom(
+                this.clientLog.send<object>(
+                    { cmd: LogMethods.LOG_ADD },
+                    {
+                        curTime,
+                        abc,
+                        operation: Action.VERIFICATION_CODE,
+                        operator: data.user.name,
+                        platform: data.user.platform,
+                        details: `
+
+                            ip: ${data.user.ip || NetworkUtils.getLocalIpAddress()}
+                            message:${ex.message}
+                        `,
+                        status: LogStatus.ERROR,
+                    },
+                ),
+            );
+            return error(ex.message);
         }
     }
-
 }

@@ -18,11 +18,6 @@ import listen_microservice from 'src/common/helper/listenMicroservice';
         name: 'MICROSERVICE_PHONE_CLIENT',
         useFactory: listen_microservice("micSms"),
         inject: [ConfigService],
-      },
-      {
-        name: "MICROSERVICE_LOG_CLIENT",
-        useFactory: listen_microservice("micLog"),
-        inject: [ConfigService],
       }
     ]),
     TypeOrmModule.forRootAsync({
