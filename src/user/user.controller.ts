@@ -10,7 +10,7 @@ import { UserService } from "./user.service";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
 import { ConfigService } from "src/common/config/config.service";
-import { success, error, result } from "src/common/helper/result";
+import { success, error, result, resultCode } from "src/common/helper/result";
 import { LogStatus } from "src/common/enum/log";
 import { NetworkUtils } from "src/common/helper/ip";
 import { LogMethods } from "src/common/enum/methods";
@@ -24,6 +24,9 @@ import { UserStatus } from "src/common/enum/userStatus";
 import * as crypto from 'crypto';
 import { AccessVerifyInterceptor } from "src/common/interceptor/access.verify.interceptor";
 import { VerifyTokenInterceptor } from "src/common/interceptor/verify.token.interceptor";
+import { Action } from "src/common/enum/action"; // Import Action enum
+import { getAbc } from "src/common/helper/access.verifiy";
+import { UserDto } from "src/common/dto/user.dto";
 
 @Injectable()
 @Controller()
@@ -39,7 +42,7 @@ export class UserController {
     ) { }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "getCode" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_GET_CODE })
     async getCode(data: sendBaseModelWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const id = _.get(data, "user.id", generateID());
@@ -48,7 +51,7 @@ export class UserController {
         const name = _.get(data, "user.name", to);
         const type = _.get(data, "data.sendType");
 
-        const action = _.get(data, "data.action");
+        const action = _.toNumber(_.get(data, "data.action"));
         let cmd = "";
 
         switch (action) {
@@ -68,7 +71,8 @@ export class UserController {
 
         try {
             Logger.log(`开始发送验证码 ${JSON.stringify(data)}`);
-            const result = await firstValueFrom(this.clientVerification.send<result>({ "cmd": cmd },
+            const [curTime, abc] = await getAbc(this.configService);
+            const r = await firstValueFrom(this.clientVerification.send<result>({ "cmd": cmd },
                 {
                     "data": { "to": to, "type": type },
                     "user": {
@@ -76,24 +80,27 @@ export class UserController {
                         "id": id,
                         "ip": ip,
                         "platform": platform
-                    }
+                    },
+                    curTime,
+                    abc
                 }));
 
-            if (result.code == 200) {
-                Logger.log(`获取验证码发送成功, 结果:${JSON.stringify(result)}`);
+            if (r.code == 200) {
+                Logger.log(`获取验证码发送成功, 结果:${JSON.stringify(r)}`);
                 return success(`发送成功`);
             } else {
-                Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(result)}`);
-                return result;
+                Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(r)}`);
+                return r;
             }
         } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
             Logger.error(`获取验证码发送失败, 结果:${JSON.stringify(ex)}`);
+            const [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "getCode",
+                        operation: Action.GET_CODE,
                         operator: name,
                         platform: platform,
                         details: `
@@ -101,6 +108,8 @@ export class UserController {
                             message:${message}
                         `,
                         status: LogStatus.ERROR,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -109,7 +118,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "checkName" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_CHECK_NAME })
     async checkName(data: { name: string, ip?: string, platform?: string }) {
         const { name, ip, platform } = data;
         const userIp = ip || NetworkUtils.getLocalIpAddress();
@@ -117,14 +126,15 @@ export class UserController {
 
         try {
             if (_.isEmpty(name)) return error("参数错误");
-            const result = await this.userService.findUserByName(name);
-            return success(_.isNull(result));
+            const r = await this.userService.findUserByName(name);
+            return success(_.isNull(r));
         } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
-            this.clientLog.send<object>(
+            const [curTime, abc] = await getAbc(this.configService);
+            await this.clientLog.send<object>(
                 { cmd: LogMethods.LOG_ADD },
                 {
-                    operation: "checkName",
+                    operation: Action.CHECK_NAME,
                     operator: name,
                     platform: userPlatform,
                     details: `
@@ -132,6 +142,8 @@ export class UserController {
                         message:${message}
                     `,
                     status: LogStatus.ERROR,
+                    curTime,
+                    abc
                 },
             );
             return error(message);
@@ -139,7 +151,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "checkPhone" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_CHECK_PHONE })
     async checkPhone(data: { phone: string, ip?: string, platform?: string }) {
         const { phone, ip, platform } = data;
         const userIp = ip || NetworkUtils.getLocalIpAddress();
@@ -148,14 +160,15 @@ export class UserController {
         if (_.isEmpty(phone)) return error("参数错误");
 
         try {
-            const result = await this.userService.findUserByPhone(phone);
-            return success(_.isEmpty(result));
+            const r = await this.userService.findUserByPhone(phone);
+            return success(_.isEmpty(r));
         } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
-            this.clientLog.send<object>(
+            const [curTime, abc] = await getAbc(this.configService);
+            await this.clientLog.send<object>(
                 { cmd: LogMethods.LOG_ADD },
                 {
-                    operation: "checkPhone",
+                    operation: Action.CHECK_PHONE,
                     operator: phone,
                     platform: userPlatform,
                     details: `
@@ -163,6 +176,8 @@ export class UserController {
                         message:${message}
                     `,
                     status: LogStatus.ERROR,
+                    curTime,
+                    abc
                 },
             );
             return error(message);
@@ -170,7 +185,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "checkEmail" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_CHECK_EMAIL })
     async checkEmail(data: { email: string, ip?: string, platform?: string }) {
         const { email, ip, platform } = data;
         const userIp = ip || NetworkUtils.getLocalIpAddress();
@@ -179,14 +194,15 @@ export class UserController {
         if (_.isEmpty(email)) return error("参数错误");
 
         try {
-            const result = await this.userService.findUserByEmail(email);
-            return success(_.isEmpty(result));
+            const r = await this.userService.findUserByEmail(email);
+            return success(_.isEmpty(r));
         } catch (ex) {
             const message = _.get(ex, "message", "未知错误");
-            this.clientLog.send<object>(
+            const [curTime, abc] = await getAbc(this.configService);
+            await this.clientLog.send<object>(
                 { cmd: LogMethods.LOG_ADD },
                 {
-                    operation: "checkEmail",
+                    operation: Action.CHECK_EMAIL,
                     operator: email,
                     platform: userPlatform,
                     details: `
@@ -194,6 +210,8 @@ export class UserController {
                     message:${message}
                 `,
                     status: LogStatus.ERROR,
+                    curTime,
+                    abc
                 },
             );
             return error(message);
@@ -201,7 +219,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "register" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_REGISTER })
     async register(data: RegisterDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const isEmail = !_.isEmpty(_.get(data, "data.email"));
@@ -217,13 +235,13 @@ export class UserController {
                 return error("参数错误, 邮箱或者手机号至少传入一个");
 
             if (isEmail) {
-                const result = await this.userService.findUserByEmail(data.data.email);
-                if (!_.isEmpty(result)) {
+                const r = await this.userService.findUserByEmail(data.data.email);
+                if (!_.isEmpty(r)) {
                     return error("该邮箱已被注册");
                 }
             } else if (isPhone) {
-                const result = await this.userService.findUserByPhone(data.data.phone_number);
-                if (!_.isEmpty(result)) {
+                const r = await this.userService.findUserByPhone(data.data.phone_number);
+                if (!_.isEmpty(r)) {
                     return error("该手机号已被注册");
                 }
             }
@@ -247,14 +265,17 @@ export class UserController {
             const salt = `${name}${registrationTime.getTime()}`;
             const hashedPassword = crypto.createHash('md5').update(originalPassword + salt).digest('hex');
 
-            const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": "verifyCode" }, {
+            const [curTime, abc] = await getAbc(this.configService);
+            const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": LogMethods.VERIFICATION_VERIFY_CODE }, {
                 data: { code },
                 "user": {
                     "name": name,
                     "id": id,
                     "ip": ip,
                     "platform": platform
-                }
+                },
+                curTime,
+                abc
             }));
 
             if (vResult.code !== 200) {
@@ -286,7 +307,9 @@ export class UserController {
                 setTimeout(() => {
                     firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
                         data: { "to": email, "subject": title, "text": content },
-                        user: _.get(data, "user")
+                        user: _.get(data, "user"),
+                        curTime,
+                        abc
                     })).then(mailResult => {
                         Logger.log(`注册成功邮件发送结果: ${JSON.stringify(mailResult)}`);
                     });
@@ -297,11 +320,12 @@ export class UserController {
 
             return success("注册成功");
         } catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "register",
+                        operation: Action.REGISTER,
                         operator: data.user.name,
                         platform: data.user.platform,
                         details: `
@@ -309,6 +333,8 @@ export class UserController {
                             message:${_.get(ex, "message", "未知错误")}
                         `,
                         status: LogStatus.ERROR,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -317,7 +343,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "login" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_LOGIN })
     async login(data: LoginDtoWithUser) {
         const ip = _.get(data, 'user.ip', NetworkUtils.getLocalIpAddress());
         const email = _.get(data, 'data.email');
@@ -340,11 +366,12 @@ export class UserController {
                 ip: loginResult.ip
             });
 
+            let [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "login",
+                        operation: Action.LOGIN,
                         operator: name,
                         platform: platform,
                         details: `
@@ -354,12 +381,15 @@ export class UserController {
                             message: 登录成功
                         `,
                         status: LogStatus.SUCCESS,
+                        curTime,
+                        abc
                     },
                 ),
             );
 
             const tempUserId = `${Date.now()}-${name}-${ip}-${loginResult.id}`;
-            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: "createToken" }, { userId: tempUserId }));
+            [curTime, abc] = await getAbc(this.configService);
+            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: LogMethods.JWT_CREATE_TOKEN }, { userId: tempUserId, curTime, abc }));
 
             if (_.get(getTokenResult, 'code') !== 200) {
                 return error("获取token失败");
@@ -367,11 +397,12 @@ export class UserController {
 
             return success(getTokenResult.data);
         } catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "login",
+                        operation: Action.LOGIN,
                         operator: name,
                         platform: platform,
                         details: `
@@ -379,6 +410,8 @@ export class UserController {
                             message:${_.get(ex, "message", "未知错误")}
                         `,
                         status: LogStatus.ERROR,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -387,7 +420,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "loginWithCode" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_LOGIN_WITH_CODE })
     async loginWithCode(data: LoginDtoWithUser) {
         const ip = _.get(data, "user.ip", NetworkUtils.getLocalIpAddress());
         const email = _.get(data, "data.email");
@@ -411,32 +444,37 @@ export class UserController {
                 return error("用户不存在");
             }
 
-            const verificationResult = await firstValueFrom(this.clientVerification.send<boolean>({ cmd: "verifyCode" }, {
+            let [curTime, abc] = await getAbc(this.configService);
+            const verificationResult = await firstValueFrom(this.clientVerification.send<result>({ cmd: "verifyCode" }, {
                 data: { code },
                 user: {
-                    name: user.username,
-                    id: user.id,
+                    name: data.user.name,
+                    id: data.user.id,
                     ip: ip,
                     platform: platform
-                }
+                },
+                curTime,
+                abc
             }));
 
-            if (!verificationResult) {
+            if (!verificationResult || verificationResult.code != 200) {
                 return error("验证码错误");
             }
 
+            [curTime, abc] = await getAbc(this.configService);
             const tempUserId = (new Date()).getTime() + user.username + ip + user.id;
-            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: "createToken" }, { "userId": tempUserId }));
+            const getTokenResult = await firstValueFrom(this.clientJwt.send<result>({ cmd: "createToken" }, { "userId": tempUserId, curTime, abc }));
 
             if (_.isEmpty(getTokenResult) || getTokenResult.code !== 200) {
                 return error("获取token失败");
             }
 
-            firstValueFrom(
+            [curTime, abc] = await getAbc(this.configService);
+            await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "loginWithCode",
+                        operation: Action.LOGIN_WITH_CODE,
                         operator: user.username,
                         platform: platform,
                         details: `
@@ -446,17 +484,20 @@ export class UserController {
                             message: 登录成功
                         `,
                         status: LogStatus.SUCCESS,
+                        curTime,
+                        abc
                     },
                 )
             );
 
             return success(getTokenResult.data);
         } catch (ex) {
+            const [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "loginWithCode",
+                        operation: Action.LOGIN_WITH_CODE,
                         operator: name,
                         platform: platform,
                         details: `
@@ -464,6 +505,8 @@ export class UserController {
                             message:${_.get(ex, "message", "未知错误")}
                         `,
                         status: LogStatus.ERROR,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -472,9 +515,9 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "changePassword" })
-    async changePassword(data: { email?: string, phone?: string, code: string, newPassword: string }) {
-        const { email, phone, code, newPassword } = data;
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_CHANGE_PASSWORD })
+    async changePassword(data: { data: { email?: string, phone?: string, code: string, newPassword: string }, user: UserDto }) {
+        const { email, phone, code, newPassword } = data.data;
         const ip = NetworkUtils.getLocalIpAddress();
         const platform = Platform.SICIAL_CHECK;
 
@@ -497,14 +540,17 @@ export class UserController {
             }
 
             // 验证验证码
+            const [curTime, abc] = await getAbc(this.configService);
             const vResult = await firstValueFrom(this.clientVerification.send<result>({ "cmd": "verifyCode" }, {
                 data: { code },
                 user: {
                     name: email || phone,
-                    id: email || phone,
+                    id: data.user.id,
                     ip: ip,
                     platform: platform
-                }
+                },
+                curTime,
+                abc
             }));
 
             if (vResult.code !== 200) {
@@ -521,14 +567,16 @@ export class UserController {
                 const title = userConfig.mailConfig.passwordChangeSuccessTitle.replace("{{name}}", user.username);
                 const content = userConfig.mailConfig.passwordChangeSuccessContent.replace("{{name}}", user.username);
                 setTimeout(() => {
-                    firstValueFrom(this.clientMail.send<result>({ cmd: "sendEmail" }, {
+                    firstValueFrom(this.clientMail.send<result>({ cmd: LogMethods.EMAIL_SEND }, {
                         data: { "to": user.email, "subject": title, "text": content },
                         user: {
                             name: user.email,
                             ip,
                             id: user.id,
                             platform,
-                        }
+                        },
+                        curTime,
+                        abc
                     })).then(notifcationResult => {
                         Logger.log(`发送忘记密码通知邮件结果 ${JSON.stringify(notifcationResult)}`);
                     }).catch(ex => {
@@ -546,7 +594,7 @@ export class UserController {
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "changePassword",
+                        operation: Action.CHANGE_PASSWORD,
                         operator: user.username,
                         platform: platform,
                         details: `
@@ -554,6 +602,8 @@ export class UserController {
                             message: 密码修改成功
                         `,
                         status: LogStatus.SUCCESS,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -561,18 +611,21 @@ export class UserController {
             return success("密码修改成功");
         } catch (ex) {
             const errorMessage = _.get(ex, "message", "修改密码时发生未知错误");
+            const [curTime, abc] = await getAbc(this.configService);
             await firstValueFrom(
                 this.clientLog.send<object>(
                     { cmd: LogMethods.LOG_ADD },
                     {
-                        operation: "changePassword",
-                        operator: "System",
+                        operation: Action.CHANGE_PASSWORD,
+                        operator: _.get(data, "email") || _.get(data, "phone"),
                         platform: platform,
                         details: `
                             ip: ${ip}
                             message: ${errorMessage}
                         `,
                         status: LogStatus.ERROR,
+                        curTime,
+                        abc
                     },
                 ),
             );
@@ -581,7 +634,7 @@ export class UserController {
     }
 
     @UseInterceptors(AccessVerifyInterceptor)
-    @MessagePattern({ cmd: "getUserInfo" })
+    @MessagePattern({ cmd: LogMethods.USER_SERVICE_GET_USER_INFO })
     async getUserInfo(data: { id: number }) {
         const user = await this.userService.findUserById(data.id);
         _.unset(user, "password");
