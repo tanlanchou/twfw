@@ -22,6 +22,7 @@ import { codeWithUserDto } from "src/common/dto/verifcation.code.dto";
 import { LogMethods } from "src/common/enum/methods";
 import { getAbc } from "src/common/helper/access.verifiy";
 import { AccessVerifyInterceptor } from "src/common/interceptor/access.verify.interceptor";
+import { NotificationDto, NotificationType } from "src/common/dto/notification.dto";
 
 @Controller("verification")
 @Injectable()
@@ -122,7 +123,7 @@ export class VController {
 
         switch (data.data.type) {
             case sendType.EMAIL:
-                result = await firstValueFrom(this.clientEmail.send<object>({ cmd: "sendEmail" }, {
+                result = await firstValueFrom(this.clientEmail.send<object>({ cmd: LogMethods.EMAIL_SEND }, {
                     curTime,
                     abc,
                     data: {
@@ -134,7 +135,7 @@ export class VController {
                 }));
                 break;
             case sendType.SMS:
-                result = await firstValueFrom(this.clientPhone.send<object>({ cmd: "sendSMS" }, {
+                result = await firstValueFrom(this.clientPhone.send<object>({ cmd: LogMethods.SMS_SEND }, {
                     curTime,
                     abc,
                     data: {
@@ -193,5 +194,35 @@ export class VController {
             );
             return error(ex.message);
         }
+    }
+
+    @MessagePattern({ cmd: LogMethods.VERIFICATION_NOTIFICATION })
+    @UseInterceptors(AccessVerifyInterceptor)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async notification(data: NotificationDto) {
+        const [curTime, abc] = await getAbc(this.configService)
+        let result;
+        switch (data.type) {
+            case NotificationType.EMAIL:
+                result = await firstValueFrom(this.clientEmail.send<result>({ cmd: LogMethods.EMAIL_SEND }, {
+                    curTime,
+                    abc,
+                    data: data.email,
+                    user: data.user
+                }));
+                break;
+            case NotificationType.SMS:
+                result = await firstValueFrom(this.clientPhone.send<result>({ cmd: LogMethods.SMS_SEND }, {
+                    curTime,
+                    abc,
+                    data: data.sms,
+                    user: data.user
+                }));
+                break;
+            default:
+                return error("错误的消息类型");
+        }
+
+        return result;
     }
 }

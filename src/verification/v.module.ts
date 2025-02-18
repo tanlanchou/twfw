@@ -6,18 +6,18 @@ import { VController } from './v.controller';
 import { ConfigService } from "../common/config/config.service";
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import listen_microservice from 'src/common/helper/listenMicroservice';
+import listen_local_microservice from 'src/common/helper/listenLocalMicroservice';
 
 @Module({
   imports: [
     ClientsModule.registerAsync([
       {
         name: 'MICROSERVICE_EMAIL_CLIENT',
-        useFactory: listen_microservice("micMail"),
-        inject: [ConfigService],
-      }, {
+        useFactory: () => listen_local_microservice("127.0.0.1", 8102),
+      }, 
+      {
         name: 'MICROSERVICE_PHONE_CLIENT',
-        useFactory: listen_microservice("micSms"),
-        inject: [ConfigService],
+        useFactory: () => listen_local_microservice("127.0.0.1", 8104),
       }
     ]),
     TypeOrmModule.forRootAsync({
